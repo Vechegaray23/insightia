@@ -23,3 +23,12 @@ pre-commit install --install-hooks
 
 The configured hooks run **black**, **ruff**, **terraform fmt**, and enforce
 conventional commit messages with **gitlint**.
+
+## Continuous Integration
+
+GitHub Actions workflows run automatically on the `main` branch:
+
+- `Terraform IAC` checks formatting and generates a plan for the code in
+  `iac/`.
+- `Backend CI` installs Python dependencies, runs tests, builds a Docker image,
+  and uploads the image as an artifact.
