@@ -6,6 +6,10 @@
 - backend/: API implementation
 - frontend/: Web or mobile app
 
+### IAC Modules
+
+- `modules/supabase`: Terraform module to provision a Supabase project with database and authentication enabled.
+
 ## Development
 
 This repository uses **pre-commit** hooks for code formatting and linting.
