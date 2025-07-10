@@ -10,6 +10,7 @@
 
 - `modules/supabase`: Terraform module to provision a Supabase project with database and authentication enabled.
 - `modules/cloudflare_r2`: Terraform module to provision Cloudflare R2 buckets for audio and exports with KMS encryption and 90-day retention.
+- `modules/render`: Terraform module to deploy a simple Render container service named `hello`.
 
 ## Development
 
