@@ -1,0 +1,2 @@
+[DEFAULT]
+contrib=contrib.rules.conventional_commit
