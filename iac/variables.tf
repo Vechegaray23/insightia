@@ -21,20 +21,14 @@ variable "cloudflare_account_id" {
   type = string
 }
 
-variable "render_name" {
+variable "railway_project_name" {
+  type    = string
+  default = "mvp-project"
+}
+variable "railway_token" {
   type = string
-  default = "mvp-service"
 }
 
-variable "render_region" {
-  type = string
-  default = "oregon"
-}
-
-variable "render_env" {
-  type = string
-  default = "docker"
-}
 
 variable "repo" {
   type = string

@@ -1,7 +1,7 @@
 terraform {
   required_providers {
     render = {
-      source = "render-public/render"
+      source = "render/render"
     }
   }
 }

@@ -3,15 +3,13 @@ terraform {
   required_providers {
     supabase = {
       source  = "supabase/supabase"
-      version = "0.11.0"
     }
     cloudflare = {
       source  = "cloudflare/cloudflare"
       version = "4.24.0"
     }
-    render = {
-      source  = "render-public/render"
-      version = "0.6.1"
+    railway = {
+      source = "railwayapp/railway"
     }
   }
 }
@@ -24,6 +22,8 @@ module "r2" {
   source = "./modules/cloudflare_r2"
 }
 
-module "render" {
-  source = "./modules/render_service"
+module "railway" {
+  source = "./modules/railway_project"
+  name   = var.railway_project_name
 }
+
