@@ -1,7 +1,7 @@
 terraform {
   required_providers {
     railway = {
-      source = "railwayapp/railway"
+      source  = "terraform-community-providers/railway"
     }
   }
 }
