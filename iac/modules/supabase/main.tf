@@ -1,3 +1,11 @@
+
+terraform {
+  required_providers {
+    supabase = {
+      source = "supabase/supabase"
+    }
+  }
+}
 resource "supabase_project" "this" {
   organization_id = var.organization_id
   name            = var.name
@@ -10,6 +18,4 @@ resource "supabase_auth_config" "this" {
   site_url   = var.site_url
 }
 
-output "project_id" {
-  value = supabase_project.this.id
-}
+

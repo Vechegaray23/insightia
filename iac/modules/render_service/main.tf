@@ -1,3 +1,10 @@
+terraform {
+  required_providers {
+    render = {
+      source = "render-public/render"
+    }
+  }
+}
 resource "render_service" "app" {
   name       = var.name
   type       = "web_service"
@@ -13,6 +20,3 @@ resource "render_service" "app" {
   }
 }
 
-output "service_id" {
-  value = render_service.app.id
-}
