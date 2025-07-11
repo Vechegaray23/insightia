@@ -20,10 +20,10 @@ provider "supabase" {
   access_token = var.supabase_access_token
 }
 module "supabase" {
-  source          = "./modules/supabase"
-  organization_id = var.supabase_organization_id
-  name            = var.supabase_project_name
-  region          = var.supabase_region
+  source            = "./modules/supabase"
+  organization_id   = var.supabase_organization_id
+  name              = var.supabase_project_name
+  region            = var.supabase_region
   database_password = var.supabase_db_password
 }
 
