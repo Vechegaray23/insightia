@@ -37,4 +37,7 @@ module "railway" {
   source = "./modules/railway_project"
   name   = var.railway_project_name
 }
+provider "cloudflare" {
+  api_token = var.cloudflare_api_token
+}
 
