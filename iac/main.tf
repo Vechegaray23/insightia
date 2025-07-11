@@ -16,13 +16,15 @@ terraform {
 provider "railway" {
   token = var.railway_token
 }
+provider "supabase" {
+  access_token = var.supabase_access_token
+}
 module "supabase" {
   source          = "./modules/supabase"
   organization_id = var.supabase_organization_id
   name            = var.supabase_project_name
   region          = var.supabase_region
   site_url        = var.supabase_site_url
-  access_token    = var.supabase_access_token
 }
 
 module "r2" {
