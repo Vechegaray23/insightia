@@ -11,6 +11,7 @@ variable "region" {
   default = "us-east-1"
 }
 
-variable "site_url" {
-  type = string
+variable "database_password" {
+  type      = string
+  sensitive = true
 }

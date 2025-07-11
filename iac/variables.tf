@@ -17,10 +17,10 @@ variable "supabase_region" {
   default     = "us-east-1"
 }
 
-variable "supabase_site_url" {
-  description = "URL pública del proyecto Supabase"
+variable "supabase_db_password" {
+  description = "Password de la base de datos de Supabase"
   type        = string
-  default     = "http://localhost"
+  sensitive   = true
 }
 
 variable "supabase_access_token" {

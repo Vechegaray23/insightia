@@ -24,7 +24,7 @@ module "supabase" {
   organization_id = var.supabase_organization_id
   name            = var.supabase_project_name
   region          = var.supabase_region
-  site_url        = var.supabase_site_url
+  database_password = var.supabase_db_password
 }
 
 module "r2" {
