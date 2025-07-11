@@ -11,3 +11,5 @@ __pycache__/
 
 # Terraform
 .terraform/
+
+iac/terraform.tfvars
