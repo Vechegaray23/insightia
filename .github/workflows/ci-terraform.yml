@@ -1,0 +1,55 @@
+# .github/workflows/ci-terraform.yml
+
+name: CI Terraform
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'iac/**'
+  pull_request_target:
+    types: [opened, synchronize, reopened]
+    branches: [main]
+    paths:
+      - 'iac/**'
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  terraform:
+    name: Terraform Plan
+    runs-on: ubuntu-latest
+    env:
+      # Asegúrate que los nombres de los secretos en GitHub coincidan
+      TF_VAR_cloudflare_account_id: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      TF_VAR_railway_token: ${{ secrets.RAILWAY_TOKEN }}
+      TF_VAR_supabase_organization_id: ${{ secrets.SUPABASE_ORGANIZATION_ID }}
+      TF_VAR_supabase_access_token: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      TF_VAR_cloudflare_api_token: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      TF_VAR_supabase_db_password: ${{ secrets.SUPABASE_DB_PASSWORD }}
+    
+    steps:
+      - name: Checkout PR Code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.8.0
+          
+      - name: Terraform Init
+        # ATENCIÓN: quité '-backend=false'. En CI, generalmente quieres inicializar el backend real.
+        # Si lo necesitas por una razón específica, puedes volver a agregarlo.
+        run: terraform -chdir=iac init
+        
+      - name: Terraform Validate & Format
+        run: |
+          terraform -chdir=iac validate
+          terraform -chdir=iac fmt -check -recursive
+          
+      - name: Terraform Plan
+        run: terraform -chdir=iac plan -input=false -no-color
