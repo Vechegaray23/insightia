@@ -2,36 +2,30 @@ name: CI
 
 on:
   push:
-    branches: [ main ]
+    branches: [main]
   pull_request:
-    branches: [ main ]
 
 jobs:
   python:
-    name: 🐍 Test Python
     runs-on: ubuntu-latest
     steps:
-      - name: 📥 Checkout repository
-        uses: actions/checkout@v4
-
-      - name: ⚙️ Setup Python
-        uses: actions/setup-python@v5
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install pytest pre-commit
-
-      - name: Run pre-commit hooks
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.8.0
+      - name: Run pre-commit
         run: pre-commit run --all-files --show-diff-on-failure
-
       - name: Run tests
         run: pytest
 
   terraform:
-    name: 🌍 Terraform
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -43,34 +37,16 @@ jobs:
       TF_VAR_supabase_access_token: ${{ secrets.supabase_access_token }}
       TF_VAR_cloudflare_api_token:  ${{ secrets.cloudflare_api_token }}
       TF_VAR_supabase_db_password:  ${{ secrets.supabase_db_password }}
-
-
     steps:
-      - name: 📥 Checkout repository
-        uses: actions/checkout@v4
-
-      - name: ⚙️ Setup Terraform CLI
-        uses: hashicorp/setup-terraform@v3
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
         with:
-          terraform_version: '1.8.0'
-
+          terraform_version: 1.8.0
       - name: Terraform Format
         run: terraform fmt -check -recursive
-
-      - name: 📂 Terraform Init
-        run: terraform init -input=false
-
-
-      - name: ✅ Terraform Validate
+      - name: Terraform Init
+        run: terraform init -backend=false
+      - name: Terraform Validate
         run: terraform validate
-
-      - name: 🔍 Terraform Plan
-        run: terraform plan \
-             -input=false \
-             -out=tfplan
-
-      - name: 📄 Upload tfplan artifact
-        uses: actions/upload-artifact@v3
-        with:
-          name: tfplan
-          path: tfplan
+      - name: Terraform Plan
+        run: terraform plan -input=false
