@@ -3,13 +3,15 @@ name: CI
 on:
   push:
     branches: [main]
-  pull_request:
+  pull_request_target:
 
 jobs:
   python:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.ref }}
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
@@ -39,6 +41,8 @@ jobs:
       TF_VAR_supabase_db_password:  ${{ secrets.supabase_db_password }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.ref }}
       - uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: 1.8.0
