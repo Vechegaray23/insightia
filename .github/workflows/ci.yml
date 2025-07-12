@@ -37,12 +37,12 @@ jobs:
       run:
         working-directory: iac
     env:
-      cloudflare_account_id:     ${{ secrets.cloudflare_account_id }}
-      railway_token: ${{ secrets.railway_token }}
-      supabase_organization_id: ${{ secrets.supabase_organization_id }}
-      supabase_access_token: ${{ secrets.supabase_access_token }}
-      cloudflare_api_token: ${{ secrets.cloudflare_api_token }}
-      supabase_db_password: ${{ secrets.supabase_db_password }}
+      TF_VAR_cloudflare_account_id: ${{ secrets.cloudflare_account_id }}
+      TF_VAR_railway_token:         ${{ secrets.railway_token }}
+      TF_VAR_supabase_organization_id: ${{ secrets.supabase_organization_id }}
+      TF_VAR_supabase_access_token: ${{ secrets.supabase_access_token }}
+      TF_VAR_cloudflare_api_token:  ${{ secrets.cloudflare_api_token }}
+      TF_VAR_supabase_db_password:  ${{ secrets.supabase_db_password }}
 
 
     steps:
@@ -57,29 +57,9 @@ jobs:
       - name: Terraform Format
         run: terraform fmt -check -recursive
 
-      - name: 🔐 Azure Login
-        if: env.AZURE_CLIENT_ID && env.AZURE_CLIENT_SECRET && env.AZURE_TENANT_ID
-        uses: azure/login@v1
-        with:
-          client-id:     ${{ env.AZURE_CLIENT_ID }}
-          client-secret: ${{ env.AZURE_CLIENT_SECRET }}
-          tenant-id:     ${{ env.AZURE_TENANT_ID }}
-
-      - name: ⚙️ Set up GCP Credentials
-        if: env.GOOGLE_CREDENTIALS != ''
-        run: |
-          echo "${{ env.GOOGLE_CREDENTIALS }}" > $HOME/gcp-key.json
-          gcloud auth activate-service-account --key-file=$HOME/gcp-key.json
-
-      - name: 🔐 Terraform Cloud Login
-        if: env.TF_API_TOKEN != ''
-        run: terraform login
-
       - name: 📂 Terraform Init
-        run: |
-          terraform init \
-            -input=false \
-            $( [[ -n "${{ env.TF_API_TOKEN }}" ]] && echo "-backend-config=\"token=${{ env.TF_API_TOKEN }}\"" )
+        run: terraform init -input=false
+
 
       - name: ✅ Terraform Validate
         run: terraform validate
