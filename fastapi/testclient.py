@@ -2,6 +2,7 @@ import asyncio
 import inspect
 from typing import Any
 
+
 class TestClient:
     def __init__(self, app: Any):
         self.app = app
@@ -14,9 +15,33 @@ class TestClient:
             response = asyncio.run(handler())
         else:
             response = handler()
+
         class Result:
             def __init__(self, resp):
                 self.status_code = 200
-                self.text = resp.content
-                self.headers = resp.headers
+                self.text = getattr(resp, "content", resp)
+                self.headers = getattr(resp, "headers", {})
+                self._resp = resp
+
+        return Result(response)
+
+    def get(self, path: str):
+        handler = self.app.routes.get(("GET", path))
+        if handler is None:
+            raise ValueError(f"No route for GET {path}")
+        if inspect.iscoroutinefunction(handler):
+            response = asyncio.run(handler())
+        else:
+            response = handler()
+
+        class Result:
+            def __init__(self, resp):
+                self.status_code = 200
+                self.text = getattr(resp, "content", resp)
+                self.headers = getattr(resp, "headers", {})
+                self._resp = resp
+
+            def json(self):
+                return self._resp
+
         return Result(response)

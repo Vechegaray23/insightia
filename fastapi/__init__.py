@@ -1,4 +1,3 @@
-
 from typing import Callable, Dict, Tuple
 
 # Re-export key helpers to mimic the real package structure
@@ -13,6 +12,7 @@ class Response:
         self.text = content
         self.headers = {"content-type": media_type}
 
+
 class FastAPI:
     def __init__(self):
         self.routes: Dict[Tuple[str, str], Callable] = {}
@@ -21,7 +21,16 @@ class FastAPI:
         def decorator(func: Callable):
             self.routes[("POST", path)] = func
             return func
+
         return decorator
+
+    def get(self, path: str):
+        def decorator(func: Callable):
+            self.routes[("GET", path)] = func
+            return func
+
+        return decorator
+
 
 # Submodule-style exports are already imported above so users can access
 # `fastapi.testclient` and `fastapi.responses`.

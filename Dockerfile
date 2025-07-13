@@ -21,4 +21,4 @@ COPY pyproject.toml /app/pyproject.toml
 
 COPY promtail-config.yml /etc/promtail.yml
 
-CMD sh -c "promtail -config.file=/etc/promtail.yml & uvicorn backend.app.main:app --host 0.0.0.0 --port 8000 --workers 1"
+CMD sh -c "promtail -config.file=/etc/promtail.yml & uvicorn backend.app.main:app --host 0.0.0.0 --port ${PORT:-8000} --workers 1"

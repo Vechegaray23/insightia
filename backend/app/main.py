@@ -4,6 +4,12 @@ from fastapi.responses import Response
 app = FastAPI()
 
 
+@app.get("/health")
+async def health() -> dict[str, str]:
+    """Health check endpoint used by the platform."""
+    return {"status": "ok"}
+
+
 @app.post("/voice")
 async def voice():
     """Return a simple greeting for Twilio Voice."""

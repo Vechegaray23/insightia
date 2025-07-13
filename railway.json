@@ -3,6 +3,6 @@
     "builder": "Dockerfile"
   },
   "deploy": {
-    "healthcheckPath": "/docs"
+    "healthcheckPath": "/health"
   }
 }
