@@ -1,6 +1,11 @@
-import inspect
-import asyncio
+
 from typing import Callable, Dict, Tuple
+
+# Re-export key helpers to mimic the real package structure
+from . import testclient, responses
+
+__all__ = ["FastAPI", "Response", "testclient", "responses"]
+
 
 class Response:
     def __init__(self, content: str, media_type: str = "text/plain"):
@@ -18,6 +23,5 @@ class FastAPI:
             return func
         return decorator
 
-# Submodule-style exports
-from . import testclient, responses
-__all__ = ["FastAPI", "Response"]
+# Submodule-style exports are already imported above so users can access
+# `fastapi.testclient` and `fastapi.responses`.
