@@ -11,10 +11,13 @@ RUN apt-get update && \
     chmod +x /usr/local/bin/promtail && \
     rm -rf /var/lib/apt/lists/* /tmp/promtail.zip
 
+COPY backend/requirements.txt /app/requirements.txt
+RUN pip install --no-cache-dir -r /app/requirements.txt
+
 COPY backend /app/backend
 COPY pyproject.toml /app/pyproject.toml
 
-RUN pip install --no-cache-dir fastapi uvicorn
+#RUN pip install --no-cache-dir fastapi uvicorn
 
 COPY promtail-config.yml /etc/promtail.yml
 
