@@ -4,7 +4,7 @@ WORKDIR /app
 
 # Install Promtail
 RUN apt-get update && \
-    apt-get install -y curl unzip && \
+    apt-get install -y curl unzip gettext-base && \
     curl -L -o /tmp/promtail.zip https://github.com/grafana/loki/releases/download/v2.9.5/promtail-linux-amd64.zip && \
     unzip /tmp/promtail.zip -d /usr/local/bin && \
     mv /usr/local/bin/promtail-linux-amd64 /usr/local/bin/promtail && \
@@ -17,8 +17,13 @@ RUN pip install --no-cache-dir -r /app/requirements.txt
 COPY backend /app/backend
 COPY pyproject.toml /app/pyproject.toml
 
+# Copy entrypoint
+COPY docker-entrypoint.sh /app/docker-entrypoint.sh
+RUN chmod +x /app/docker-entrypoint.sh
+
+
 #RUN pip install --no-cache-dir fastapi uvicorn
 
 COPY promtail-config.yml /etc/promtail.yml
 
-CMD sh -c "promtail -config.file=/etc/promtail.yml & uvicorn backend.app.main:app --host 0.0.0.0 --port ${PORT:-8000} --workers 1"
+CMD ["./docker-entrypoint.sh"]
