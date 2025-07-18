@@ -16,9 +16,15 @@ async def health() -> dict[str, str]:
 async def voice():
     """Return TwiML that plays a cached TTS greeting."""
     text = "Hola, gracias por llamar"
-    url = speak(text)
-    twiml = (
-        "<?xml version='1.0' encoding='UTF-8'?>"
-        f"<Response><Play>{url}</Play></Response>"
-    )
+    try:
+        url = speak(text)
+        twiml = (
+            "<?xml version='1.0' encoding='UTF-8'?>"
+            f"<Response><Play>{url}</Play></Response>"
+        )
+    except Exception:
+        twiml = (
+            "<?xml version='1.0' encoding='UTF-8'?>"
+            f"<Response><Say>{text}</Say></Response>"
+        )
     return Response(content=twiml, media_type="text/xml")
