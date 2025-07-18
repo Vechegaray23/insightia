@@ -1,6 +1,8 @@
 from fastapi import FastAPI
 from fastapi.responses import Response
 
+from .tts import speak
+
 app = FastAPI()
 
 
@@ -12,9 +14,11 @@ async def health() -> dict[str, str]:
 
 @app.post("/voice")
 async def voice():
-    """Return a simple greeting for Twilio Voice."""
+    """Return TwiML that plays a cached TTS greeting."""
+    text = "Hola, gracias por llamar"
+    url = speak(text)
     twiml = (
         "<?xml version='1.0' encoding='UTF-8'?>"
-        "<Response><Say>Hola, gracias por llamar</Say></Response>"
+        f"<Response><Play>{url}</Play></Response>"
     )
     return Response(content=twiml, media_type="text/xml")
