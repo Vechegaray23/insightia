@@ -8,6 +8,8 @@ from tenacity import retry, stop_after_attempt, wait_random_exponential
 VOICE = os.environ.get("TTS_VOICE", "nova")
 MODEL = os.environ.get("TTS_MODEL", "tts-1")
 BUCKET_BASE_URL = os.environ.get("R2_BUCKET_BASE_URL", "https://r2.example.com")
+API_TOKEN = os.environ.get("R2_API_TOKEN")
+
 CACHE_PREFIX = "mvp/audio-cache/"
 
 
@@ -46,7 +48,10 @@ def _fetch_tts_audio(text: str) -> bytes:
 def _upload_to_r2(key: str, data: bytes) -> None:
     """Upload MP3 data to Cloudflare R2."""
     url = f"{BUCKET_BASE_URL}/{key}"
-    resp = httpx.put(url, content=data, headers={"Content-Type": "audio/mpeg"})
+    headers = {"Content-Type": "audio/mpeg"}
+    if API_TOKEN:
+        headers["Authorization"] = f"Bearer {API_TOKEN}"
+    resp = httpx.put(url, content=data, headers=headers)    
     resp.raise_for_status()
 
 
@@ -56,7 +61,8 @@ def speak(text: str) -> str:
     key = f"{CACHE_PREFIX}{sha}.mp3"
     url = f"{BUCKET_BASE_URL}/{key}"
 
-    head = httpx.head(url)
+    headers = {"Authorization": f"Bearer {API_TOKEN}"} if API_TOKEN else None
+    head = httpx.head(url) if headers is None else httpx.head(url, headers=headers)    
     if head.status_code == 200:
         return url
 

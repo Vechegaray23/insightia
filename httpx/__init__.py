@@ -15,7 +15,7 @@ class HTTPStatusError(Exception):
         self.response = response
 
 
-def head(url):
+def head(url, headers=None):
     return Response()
 
 
