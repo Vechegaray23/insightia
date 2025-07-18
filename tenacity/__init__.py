@@ -12,5 +12,7 @@ def retry(*dargs, **dkwargs):
     def decorator(fn):
         def wrapper(*args, **kwargs):
             return fn(*args, **kwargs)
+        
         return wrapper
+    
     return decorator
