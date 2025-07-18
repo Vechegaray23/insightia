@@ -4,6 +4,9 @@ from typing import Any
 
 
 class TestClient:
+
+    __test__ = False
+
     def __init__(self, app: Any):
         self.app = app
 

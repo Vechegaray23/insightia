@@ -31,9 +31,8 @@ def test_speak_cached(monkeypatch):
     monkeypatch.setattr(tts, "_upload_to_r2", lambda key, data: None)
 
     url = tts.speak("hola")
-    expected_hash = hashlib.sha1(
-        f"hola{tts.VOICE}{tts.MODEL}".encode()
-    ).hexdigest()
+    expected_hash = hashlib.sha1(f"hola{tts.VOICE}{tts.MODEL}".encode()).hexdigest()
+
     assert url == f"{url_base}/{tts.CACHE_PREFIX}{expected_hash}.mp3"
 
 
@@ -60,9 +59,8 @@ def test_speak_generate(monkeypatch):
     monkeypatch.setattr(tts, "_upload_to_r2", fake_upload)
 
     url = tts.speak("hola")
-    expected_hash = hashlib.sha1(
-        f"hola{tts.VOICE}{tts.MODEL}".encode()
-    ).hexdigest()
+    expected_hash = hashlib.sha1(f"hola{tts.VOICE}{tts.MODEL}".encode()).hexdigest()
+
     key = f"{tts.CACHE_PREFIX}{expected_hash}.mp3"
     assert url == f"{url_base}/{key}"
     assert calls["fetch"] == "hola"
