@@ -13,7 +13,26 @@ clients:
 
 scrape_configs:
   - job_name: app
+    pipeline_stages:
+      - template:
+          source: stream
+          template: '{{ .Labels.__stream__ }}'
+          output: stream
+      - labels:
+          stream
     static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: backend
+          __path__: /proc/1/fd/1
+          __stream__: stdout
+      - targets:
+          - localhost
+        labels:
+          job: backend
+          __path__: /proc/1/fd/2
+          __stream__: stderr
       - targets:
           - localhost
         labels:
