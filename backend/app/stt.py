@@ -6,7 +6,7 @@ import os
 import time
 import wave
 import httpx
-import json # Necesario para manejar mensajes JSON del WebSocket
+import json
 from fastapi import WebSocket # Necesario para tipado y métodos asíncronos
 
 from .supabase import save_transcript
@@ -51,7 +51,6 @@ def transcribe_chunk(wav: bytes) -> str:
         return "" # Devuelve cadena vacía en caso de error de API
 
 
-# Modificación: Hacer process_stream asíncrona y usar await
 async def process_stream(ws: WebSocket, call_id: str) -> None:
     """
     Procesa audio por WebSocket, lo envía a Whisper y emite transcripciones.
@@ -62,31 +61,32 @@ async def process_stream(ws: WebSocket, call_id: str) -> None:
     
     print(f"[{call_id}] Starting STT stream processing.")
 
+    stream_active = True # Controla el bucle principal
     try:
-        while True:
-            # ws.receive() puede devolver dicts (JSON) o bytes
-            message = await ws.receive() 
+        while stream_active: 
+            message = await ws.receive() # Espera por cualquier tipo de mensaje
             
-            if "bytes" in message:
+            if "bytes" in message: # Si el mensaje es de tipo bytes (audio)
                 chunk = message["bytes"]
                 if not chunk:
-                    print(f"[{call_id}] No more audio chunks received. Breaking loop.")
-                    break # El stream se corta si no hay más chunks
+                    # Si se recibe un chunk vacío, podría indicar una pausa o el fin del stream.
+                    # No salimos inmediatamente, esperamos un evento 'stop' explícito.
+                    print(f"[{call_id}] Empty audio chunk received. Keeping stream active.")
+                    continue 
                 
                 buffer += chunk
                 
-                # Procesar chunks cuando el búfer alcanza el tamaño definido
+                # Procesar chunks completos cuando el búfer alcanza el tamaño definido
                 while len(buffer) >= CHUNK_SIZE:
                     raw = buffer[:CHUNK_SIZE]
-                    buffer = buffer[CHUNK_SIZE:]
+                    buffer = buffer[CHUNK_SIZE:] # Quita el chunk procesado del buffer
                     
                     wav = mulaw_to_wav(raw)
                     text = transcribe_chunk(wav) # Llama a Whisper
                     ts_end = time.time()
                     
-                    # Solo guardar y enviar si hay texto significativo
-                    if text and text.strip(): 
-                        await save_transcript(call_id, ts_start, ts_end, text) # save_transcript también debe ser async
+                    if text and text.strip(): # Solo guardar y enviar si hay texto significativo
+                        await save_transcript(call_id, ts_start, ts_end, text)
                         print(f"[{call_id}] Transcribed: {text}") # Para depuración
                         await ws.send_text(text) # Enviar transcripción de vuelta al cliente (Twilio)
                     
@@ -96,22 +96,36 @@ async def process_stream(ws: WebSocket, call_id: str) -> None:
                 # Twilio puede enviar mensajes de control en texto (JSON) durante la llamada
                 try:
                     control_data = json.loads(message["text"])
-                    if control_data.get("event") == "stop":
-                        print(f"[{call_id}] Twilio Media Stream 'stop' event received. Closing stream.")
-                        break # Salir si Twilio envía un mensaje de stop
-                    # Puedes manejar otros eventos de control aquí, como "mark"
-                    print(f"[{call_id}] Received control message: {control_data.get('event')}")
+                    event = control_data.get("event")
+
+                    if event == "stop":
+                        print(f"[{call_id}] Twilio Media Stream 'stop' event received.")
+                        
+                        # --- MODIFICACIÓN CLAVE: Procesar el búfer restante ANTES de detenerse ---
+                        if buffer:
+                            print(f"[{call_id}] Processing remaining buffer ({len(buffer)} bytes) before stopping.")
+                            wav = mulaw_to_wav(buffer)
+                            text = transcribe_chunk(wav)
+                            ts_end = time.time()
+                            if text and text.strip():
+                                await save_transcript(call_id, ts_start, ts_end, text)
+                                print(f"[{call_id}] Transcribed (final chunk): {text}")
+                                # No es estrictamente necesario enviar el último chunk a Twilio si la llamada se va a colgar.
+                                # await ws.send_text(text) 
+                        
+                        stream_active = False # Cambiar la bandera para salir del bucle en la próxima iteración
+                    elif event != "media": # Filtrar los ruidosos mensajes "media" que no son audio real
+                        print(f"[{call_id}] Received control message: {event}")
+
                 except json.JSONDecodeError:
                     print(f"[{call_id}] Received non-JSON text message: {message['text']}")
             
-            elif message is None: # La conexión WebSocket se cerró por el cliente
-                print(f"[{call_id}] WebSocket connection closed by client.")
-                break
-            
+            elif message is None: # La conexión WebSocket se cerró inesperadamente por el cliente
+                print(f"[{call_id}] WebSocket connection closed by client unexpectedly.")
+                stream_active = False # Salir del bucle
+                
     except Exception as e:
         print(f"[{call_id}] Error processing stream: {e}")
     finally:
-        print(f"[{call_id}] STT stream processing finished.")
-        # Opcional: Cerrar el WebSocket explícitamente si aún no está cerrado
-        # if not ws.client_state == WebSocketState.DISCONNECTED:
-        #    await ws.close()
+        print(f"[{call_id}] STT stream processing finished. Final buffer size: {len(buffer)}")
+        # El búfer ya fue procesado si se recibió un evento 'stop'.
