@@ -1,5 +1,5 @@
 import os
-from fastapi import FastAPI, Response, WebSocket # Asegúrate de importar WebSocket
+from fastapi import FastAPI, Response, WebSocket
 import json # Necesario para parsear el mensaje inicial del WebSocket
 
 from .tts import speak
@@ -60,21 +60,16 @@ async def health() -> dict[str, str]:
 async def voice():
     """
     Devuelve TwiML que reproduce un saludo TTS de OpenAI y luego
-    inicia Twilio Media Streams para STT.
+    inicia Twilio Media Streams para STT y espera la entrada del usuario.
     """
     initial_greeting_text = "Por favor, dígame lo que necesita."
     
-    # Intenta generar la URL del audio del saludo usando tts.speak (voz OpenAI)
     greeting_audio_url = None
     try:
-        greeting_audio_url = await speak(initial_greeting_text) # Asíncrono
+        greeting_audio_url = await speak(initial_greeting_text)
     except Exception as e:
         print(f"Error generating TTS audio for greeting: {e}")
-        # Si falla, se usará <Say> con la voz por defecto de Twilio
         
-    # La URL pública de tu aplicación, apuntando al endpoint WebSocket /stt
-    # DEBES configurar TWILIO_WEBSOCKET_URL en tus variables de entorno en Railway.
-    # Por ejemplo: TWILIO_WEBSOCKET_URL=wss://insightia-production.up.railway.app/stt
     websocket_url = os.environ.get("TWILIO_WEBSOCKET_URL", "wss://insightia-production.up.railway.app/stt")
     
     twiml_parts = [
@@ -86,13 +81,22 @@ async def voice():
     ]
 
     if greeting_audio_url:
-        # Si se generó el audio TTS de OpenAI, lo reproducimos con <Play>
         twiml_parts.append(f"  <Play>{greeting_audio_url}</Play>")
     else:
-        # Si la generación de TTS falló, usamos <Say> con la voz por defecto de Twilio
         twiml_parts.append(f"  <Say>{initial_greeting_text}</Say>")
 
-    twiml_parts.append("</Response>")
+    # --- NUEVA ADICIÓN: <Gather> para mantener la llamada activa y esperar la voz del usuario ---
+    # input='speech': Twilio escuchará la voz.
+    # speechTimeout='auto': Twilio detectará automáticamente cuándo el usuario deja de hablar.
+    # timeout='10': Twilio esperará hasta 10 segundos de silencio antes de finalizar la espera (si no hay speech).
+    # action: URL a la que Twilio enviará el resultado de la voz del usuario.
+    #         Si no se especifica, Twilio volverá a enviar la solicitud a la URL actual (/voice).
+    #         Para un flujo de conversación completo, necesitarías un endpoint dedicado para esto.
+    twiml_parts.append(
+        "  <Gather input='speech' speechTimeout='auto' timeout='10'>"
+        "  </Gather>"
+        "</Response>"
+    )
     
     twiml = "".join(twiml_parts)
     print(f"Generated TwiML: {twiml}") # Para depuración
