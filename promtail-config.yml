@@ -19,7 +19,7 @@ scrape_configs:
           template: '{{ .Labels.__stream__ }}'
           output: stream
       - labels:
-          stream
+          stream:
     static_configs:
       - targets:
           - localhost
