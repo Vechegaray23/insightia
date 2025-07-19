@@ -2,4 +2,5 @@ fastapi
 uvicorn
 httpx
 tenacity
-boto3 
+boto3
+openai

@@ -19,12 +19,29 @@ class DummyResp:
 def test_speak_cached(monkeypatch):
     url_base = "https://cache.example.com"
     monkeypatch.setenv("R2_BUCKET_BASE_URL", url_base)
+    monkeypatch.setenv("R2_BUCKET_NAME", "bucket")
+    monkeypatch.setenv("R2_ENDPOINT_URL", "https://r2")
+    monkeypatch.setenv("R2_PUBLIC_BASE_URL", url_base)
     tts.BUCKET_BASE_URL = url_base
+    tts.R2_BUCKET_NAME = "bucket"
+    tts.R2_ENDPOINT_URL = "https://r2"
+    tts.R2_PUBLIC_BASE_URL = url_base
+    tts.R2_BUCKET_NAME = "bucket"
+    tts.R2_ENDPOINT_URL = "https://r2"
+    tts.R2_PUBLIC_BASE_URL = url_base
+    tts.R2_BUCKET_NAME = "bucket"
+    tts.R2_ENDPOINT_URL = "https://r2"
+    tts.R2_PUBLIC_BASE_URL = url_base
 
     class Client:
-        def head(self, url):
-            assert url.startswith(url_base)
-            return DummyResp(200)
+        class exceptions:
+            class ClientError(Exception):
+                pass
+
+        def head_object(self, Bucket=None, Key=None):
+            return True
+
+    tts.s3_client = Client()
 
     monkeypatch.setattr(httpx, "head", lambda url, headers=None: DummyResp(200))
     monkeypatch.setattr(tts, "_fetch_tts_audio", lambda text: b"audio")
@@ -39,7 +56,23 @@ def test_speak_cached(monkeypatch):
 def test_speak_generate(monkeypatch):
     url_base = "https://cache.example.com"
     monkeypatch.setenv("R2_BUCKET_BASE_URL", url_base)
+    monkeypatch.setenv("R2_BUCKET_NAME", "bucket")
+    monkeypatch.setenv("R2_ENDPOINT_URL", "https://r2")
+    monkeypatch.setenv("R2_PUBLIC_BASE_URL", url_base)
     tts.BUCKET_BASE_URL = url_base
+    class DummyS3:
+        class exceptions:
+            class ClientError(Exception):
+                def __init__(self, response=None, operation_name=None):
+                    self.response = {"Error": {"Code": "404"}}
+
+        def put_object(self, Bucket=None, Key=None, Body=None, ContentType=None):
+            pass
+
+        def head_object(self, Bucket=None, Key=None):
+            raise self.exceptions.ClientError({"Error": {"Code": "404"}}, None)
+
+    tts.s3_client = DummyS3()
 
     calls = {}
 
@@ -68,14 +101,14 @@ def test_speak_generate(monkeypatch):
 
 
 def test_upload_auth_header(monkeypatch):
-    monkeypatch.setenv("R2_API_TOKEN", "testtoken")
-    tts.API_TOKEN = "testtoken"
-    called = {}
+    monkeypatch.setenv("R2_BUCKET_NAME", "bucket")
+    class DummyS3:
+        def __init__(self):
+            self.called = False
 
-    def fake_put(url, content=None, headers=None):
-        called["headers"] = headers
-        return DummyResp(200)
+        def put_object(self, **kwargs):
+            self.called = True
 
-    monkeypatch.setattr(httpx, "put", fake_put)
+    tts.s3_client = DummyS3()
     tts._upload_to_r2("file.mp3", b"data")
-    assert called["headers"]["Authorization"] == "Bearer testtoken"
+    assert tts.s3_client.called
