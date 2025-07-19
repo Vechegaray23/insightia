@@ -11,7 +11,7 @@ from fastapi import WebSocket # Necesario para tipado y métodos asíncronos
 
 from .supabase import save_transcript
 
-SAMPLE_RATE = 16000
+SAMPLE_RATE = int(os.getenv("TWILIO_SAMPLE_RATE", "8000"))
 CHUNK_SECONDS = 5
 CHUNK_SIZE = SAMPLE_RATE * CHUNK_SECONDS  # bytes for mu-law (1 byte per sample)
 

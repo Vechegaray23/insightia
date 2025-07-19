@@ -92,11 +92,21 @@ async def voice():
     # action: URL a la que Twilio enviará el resultado de la voz del usuario.
     #         Si no se especifica, Twilio volverá a enviar la solicitud a la URL actual (/voice).
     #         Para un flujo de conversación completo, necesitarías un endpoint dedicado para esto.
-    twiml_parts.append(
+    
+    '''
+        twiml_parts.append(
         "  <Gather input='speech' speechTimeout='auto' timeout='20'>"
         "  </Gather>"
         "</Response>"
     )
+    '''
+    # Mantener la llamada abierta mientras se transmite el audio
+    # Se elimina el bloque <Gather> y se usa un <Pause> para mantener la conexion
+    twiml_parts.append("  <Pause length='20'/>")
+    twiml_parts.append("</Response>")
+
+
+
     
     twiml = "".join(twiml_parts)
     print(f"Generated TwiML: {twiml}") # Para depuración
