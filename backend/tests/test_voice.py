@@ -6,12 +6,11 @@ client = TestClient(app)
 
 
 def test_voice_endpoint(monkeypatch):
-    monkeypatch.setattr(tts, "speak", lambda text: "https://audio/file.mp3")
-    monkeypatch.setattr(
-        "backend.app.main.speak",
-        lambda text: "https://audio/file.mp3",
-        raising=False,
-    )
+    async def fake_speak(text: str):
+        return "https://audio/file.mp3"
+
+    monkeypatch.setattr(tts, "speak", fake_speak)
+    monkeypatch.setattr("backend.app.main.speak", fake_speak, raising=False)
     response = client.post("/voice")
     assert response.status_code == 200
     assert "<Play>https://audio/file.mp3</Play>" in response.text
@@ -19,7 +18,7 @@ def test_voice_endpoint(monkeypatch):
 
 
 def test_voice_endpoint_fallback(monkeypatch):
-    def fail_speak(text: str):
+    async def fail_speak(text: str):
         raise RuntimeError("boom")
 
     monkeypatch.setattr(tts, "speak", fail_speak)

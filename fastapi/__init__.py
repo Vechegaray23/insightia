@@ -3,7 +3,7 @@ from typing import Callable, Dict, Tuple
 # Re-export key helpers to mimic the real package structure
 from . import testclient, responses
 
-__all__ = ["FastAPI", "Response", "testclient", "responses"]
+__all__ = ["FastAPI", "Response", "WebSocket", "testclient", "responses"]
 
 
 class Response:
@@ -11,6 +11,20 @@ class Response:
         self.content = content
         self.text = content
         self.headers = {"content-type": media_type}
+
+
+class WebSocket:
+    async def accept(self) -> None:  # pragma: no cover - stub
+        pass
+
+    async def receive_json(self):  # pragma: no cover - stub
+        pass
+
+    async def receive(self):  # pragma: no cover - stub
+        pass
+
+    async def send_text(self, data: str) -> None:  # pragma: no cover - stub
+        pass
 
 
 class FastAPI:

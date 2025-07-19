@@ -1,5 +1,6 @@
 import hashlib
 
+import asyncio
 import httpx
 
 from backend.app import tts
@@ -44,10 +45,17 @@ def test_speak_cached(monkeypatch):
     tts.s3_client = Client()
 
     monkeypatch.setattr(httpx, "head", lambda url, headers=None: DummyResp(200))
-    monkeypatch.setattr(tts, "_fetch_tts_audio", lambda text: b"audio")
-    monkeypatch.setattr(tts, "_upload_to_r2", lambda key, data: None)
 
-    url = tts.speak("hola")
+    async def fake_fetch(text):
+        return b"audio"
+
+    async def fake_upload(key, data):
+        return None
+
+    monkeypatch.setattr(tts, "_fetch_tts_audio", fake_fetch)
+    monkeypatch.setattr(tts, "_upload_to_r2", fake_upload)
+
+    url = asyncio.run(tts.speak("hola"))
     expected_hash = hashlib.sha1(f"hola{tts.VOICE}{tts.MODEL}".encode()).hexdigest()
 
     assert url == f"{url_base}/{tts.CACHE_PREFIX}{expected_hash}.mp3"
@@ -80,18 +88,18 @@ def test_speak_generate(monkeypatch):
         calls["head"] = url
         return DummyResp(404)
 
-    def fake_fetch(text):
+    async def fake_fetch(text):
         calls["fetch"] = text
         return b"audio-data"
 
-    def fake_upload(key, data):
+    async def fake_upload(key, data):
         calls["upload"] = (key, data)
 
     monkeypatch.setattr(httpx, "head", fake_head)
     monkeypatch.setattr(tts, "_fetch_tts_audio", fake_fetch)
     monkeypatch.setattr(tts, "_upload_to_r2", fake_upload)
 
-    url = tts.speak("hola")
+    url = asyncio.run(tts.speak("hola"))
     expected_hash = hashlib.sha1(f"hola{tts.VOICE}{tts.MODEL}".encode()).hexdigest()
 
     key = f"{tts.CACHE_PREFIX}{expected_hash}.mp3"
@@ -110,5 +118,5 @@ def test_upload_auth_header(monkeypatch):
             self.called = True
 
     tts.s3_client = DummyS3()
-    tts._upload_to_r2("file.mp3", b"data")
+    asyncio.run(tts._upload_to_r2("file.mp3", b"data"))
     assert tts.s3_client.called

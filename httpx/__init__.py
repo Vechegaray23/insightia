@@ -25,3 +25,17 @@ def post(url, headers=None, json=None):
 
 def put(url, content=None, headers=None):
     return Response()
+
+
+class AsyncClient:
+    def __init__(self, *args, **kwargs):
+        pass
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, exc_type, exc, tb):
+        pass
+
+    async def post(self, url, headers=None, json=None, files=None):
+        return Response()

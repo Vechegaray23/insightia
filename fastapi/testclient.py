@@ -37,6 +37,9 @@ class TestClient:
         def send_bytes(self, data: bytes) -> None:
             self.incoming.append(data)
 
+        def send_text(self, text: str) -> None:
+            self.incoming.append(text)
+
         def __enter__(self):
             return self
 
@@ -47,12 +50,25 @@ class TestClient:
                         self._in = incoming
                         self._out = outgoing
 
-                    def receive_bytes(self):
-                        if self._in:
-                            return self._in.pop(0)
-                        return b""
+                    async def accept(self):
+                        pass
 
-                    def send_text(self, text: str):
+                    async def receive(self):
+                        if self._in:
+                            item = self._in.pop(0)
+                            if isinstance(item, bytes):
+                                return {"bytes": item}
+                            return {"text": item}
+                        return None
+
+                    async def receive_json(self):
+                        if self._in:
+                            import json
+
+                            return json.loads(self._in.pop(0))
+                        return {}
+
+                    async def send_text(self, text: str):
                         self._out.append(text)
 
                 ws = FakeWS(self.incoming, self.outgoing)

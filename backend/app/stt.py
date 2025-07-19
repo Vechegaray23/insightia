@@ -7,6 +7,7 @@ import time
 import wave
 import httpx
 import json
+import base64
 from fastapi import WebSocket # Necesario para tipado y métodos asíncronos
 
 from .supabase import save_transcript
@@ -64,57 +65,50 @@ async def process_stream(ws: WebSocket, call_id: str) -> None:
     stream_active = True # Controla el bucle principal
     try:
         while stream_active: 
-            message = await ws.receive() # Espera por cualquier tipo de mensaje
-            
-            if "bytes" in message: # Si el mensaje es de tipo bytes (audio)
-                chunk = message["bytes"]
-                if not chunk:
-                    # Si se recibe un chunk vacío, podría indicar una pausa o el fin del stream.
-                    # No salimos inmediatamente, esperamos un evento 'stop' explícito.
-                    print(f"[{call_id}] Empty audio chunk received. Keeping stream active.")
-                    continue 
-                
-                buffer += chunk
-                
-                # Procesar chunks completos cuando el búfer alcanza el tamaño definido
-                while len(buffer) >= CHUNK_SIZE:
-                    raw = buffer[:CHUNK_SIZE]
-                    buffer = buffer[CHUNK_SIZE:] # Quita el chunk procesado del buffer
-                    
-                    wav = mulaw_to_wav(raw)
-                    text = transcribe_chunk(wav) # Llama a Whisper
-                    ts_end = time.time()
-                    
-                    if text and text.strip(): # Solo guardar y enviar si hay texto significativo
-                        await save_transcript(call_id, ts_start, ts_end, text)
-                        print(f"[{call_id}] Transcribed: {text}") # Para depuración
-                        await ws.send_text(text) # Enviar transcripción de vuelta al cliente (Twilio)
-                    
-                    ts_start = ts_end # Actualizar el inicio del siguiente chunk
-            
-            elif "text" in message:
-                # Twilio puede enviar mensajes de control en texto (JSON) durante la llamada
+            message = await ws.receive()  # Espera por cualquier tipo de mensaje
+
+            if "text" in message:
+                # Twilio Media Streams envía todos los datos como texto JSON
                 try:
                     control_data = json.loads(message["text"])
                     event = control_data.get("event")
 
-                    if event == "stop":
+                    if event == "media":
+                        payload_b64 = control_data.get("media", {}).get("payload", "")
+                        if payload_b64:
+                            buffer += base64.b64decode(payload_b64)
+
+                            while len(buffer) >= CHUNK_SIZE:
+                                raw = buffer[:CHUNK_SIZE]
+                                buffer = buffer[CHUNK_SIZE:]
+
+                                wav = mulaw_to_wav(raw)
+                                text = transcribe_chunk(wav)
+                                ts_end = time.time()
+
+                                if text and text.strip():
+                                    await save_transcript(call_id, ts_start, ts_end, text)
+                                    print(f"[{call_id}] Transcribed: {text}")
+                                    await ws.send_text(text)
+
+                                ts_start = ts_end
+
+                    elif event == "stop":
                         print(f"[{call_id}] Twilio Media Stream 'stop' event received.")
-                        
-                        # --- MODIFICACIÓN CLAVE: Procesar el búfer restante ANTES de detenerse ---
+
                         if buffer:
-                            print(f"[{call_id}] Processing remaining buffer ({len(buffer)} bytes) before stopping.")
+                            print(
+                                f"[{call_id}] Processing remaining buffer ({len(buffer)} bytes) before stopping."
+                            )
                             wav = mulaw_to_wav(buffer)
                             text = transcribe_chunk(wav)
                             ts_end = time.time()
                             if text and text.strip():
                                 await save_transcript(call_id, ts_start, ts_end, text)
                                 print(f"[{call_id}] Transcribed (final chunk): {text}")
-                                # No es estrictamente necesario enviar el último chunk a Twilio si la llamada se va a colgar.
-                                # await ws.send_text(text) 
-                        
-                        stream_active = False # Cambiar la bandera para salir del bucle en la próxima iteración
-                    elif event != "media": # Filtrar los ruidosos mensajes "media" que no son audio real
+
+                        stream_active = False
+                    else:
                         print(f"[{call_id}] Received control message: {event}")
 
                 except json.JSONDecodeError:
