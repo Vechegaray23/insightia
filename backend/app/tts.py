@@ -69,16 +69,28 @@ def _fetch_tts_audio(text: str) -> bytes:
 def _upload_to_r2(key: str, data: bytes) -> None:
     """Upload MP3 data to Cloudflare R2 using boto3."""
     if not s3_client or not R2_BUCKET_NAME:
-        raise RuntimeError("R2 S3 client or bucket name not configured. Check R2_ENDPOINT_URL, R2_BUCKET_NAME, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY environment variables.")
+        # Line 72: E501 fix
+        raise RuntimeError(
+            "R2 S3 client or bucket name not configured. Check R2_ENDPOINT_URL, "
+            "R2_BUCKET_NAME, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY "
+            "environment variables."
+        )
     
-    # Utiliza put_object de boto3 para subir el archivo a R2
-    s3_client.put_object(Bucket=R2_BUCKET_NAME, Key=key, Body=data, ContentType="audio/mpeg")
+    # Line 75: E501 fix - break into multiple lines or use keyword arguments directly
+    s3_client.put_object(
+        Bucket=R2_BUCKET_NAME, Key=key, Body=data, ContentType="audio/mpeg"
+    )
 
 
 def speak(text: str) -> str:
     """Return the R2 URL for the given text's TTS audio."""
     if not s3_client or not R2_BUCKET_NAME or not R2_ENDPOINT_URL:
-        raise RuntimeError("R2 S3 client, bucket name, or endpoint not configured. Check R2_ENDPOINT_URL, R2_BUCKET_NAME, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY environment variables.")
+        # Line 81: E501 fix
+        raise RuntimeError(
+            "R2 S3 client, bucket name, or endpoint not configured. Check "
+            "R2_ENDPOINT_URL, R2_BUCKET_NAME, AWS_ACCESS_KEY_ID, "
+            "AWS_SECRET_ACCESS_KEY environment variables."
+        )
 
     sha = hashlib.sha1(f"{text}{VOICE}{MODEL}".encode()).hexdigest()
     key = f"{CACHE_PREFIX}{sha}.mp3"
