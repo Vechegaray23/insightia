@@ -62,7 +62,7 @@ async def voice():
     Devuelve TwiML que reproduce un saludo TTS de OpenAI y luego
     inicia Twilio Media Streams para STT y espera la entrada del usuario.
     """
-    initial_greeting_text = "Por favor, dígame lo que necesita."
+    initial_greeting_text = "Nuestra misión es compartir la belleza de las palabras y las historias que se tejen con ellas."
     
     greeting_audio_url = None
     try:
