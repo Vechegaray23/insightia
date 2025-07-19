@@ -1,35 +1,37 @@
 import os
-from fastapi import FastAPI, Response
-from fastapi import WebSocket # Asegúrate de importar WebSocket
+from fastapi import FastAPI, Response, WebSocket # Asegúrate de importar WebSocket
+import json # Necesario para parsear el mensaje inicial del WebSocket
+
 from .tts import speak
 from . import stt, wer
 
 app = FastAPI()
 
-# Modificación: hacer el WebSocket asíncrono y capturar call_id
 @app.websocket("/stt")
 async def websocket_stt(websocket: WebSocket):
-    """Recibir audio μ-law y devolver texto."""
+    """
+    Recibe audio μ-law de Twilio Media Streams y delega el procesamiento.
+    Intenta extraer el call_id de los metadatos iniciales de Twilio.
+    """
     await websocket.accept() # Aceptar la conexión WebSocket
 
-    call_id = "unknown-call"
-    
-    # Intenta obtener el call_id de los metadatos de Twilio Media Streams
+    call_id = "unknown-call" # Valor por defecto
+
     try:
+        # El primer mensaje de Twilio Media Streams suele ser un JSON con el evento "start"
         initial_message = await websocket.receive_json()
         if initial_message.get("event") == "start":
             call_sid = initial_message.get("start", {}).get("callSid")
             if call_sid:
                 call_id = call_sid
-                print(f"Received callSid: {call_id}") # Para depuración
+                print(f"[{call_id}] Received callSid: {call_id}") # Para depuración
     except Exception as e:
         print(f"Error receiving initial WebSocket message or call_id: {e}")
         # Continuar con el call_id por defecto si falla la obtención
 
-    # Pasar el objeto websocket y el call_id al procesador de stream
-    # Importante: stt.process_stream DEBE ser async ahora
-    await stt.process_stream(websocket, call_id) 
-    print(f"WebSocket connection for call {call_id} closed.")
+    # stt.process_stream ahora debe ser una función asíncrona
+    await stt.process_stream(websocket, call_id)
+    print(f"[{call_id}] WebSocket connection closed.")
 
 
 @app.post("/wer")
@@ -54,22 +56,44 @@ async def health() -> dict[str, str]:
     return {"status": "ok"}
 
 
-# Modificación: El endpoint /voice ahora inicia Media Streams
 @app.post("/voice")
 async def voice():
-    """Return TwiML that initiates Twilio Media Streams."""
+    """
+    Devuelve TwiML que reproduce un saludo TTS de OpenAI y luego
+    inicia Twilio Media Streams para STT.
+    """
+    initial_greeting_text = "Por favor, dígame lo que necesita."
+    
+    # Intenta generar la URL del audio del saludo usando tts.speak (voz OpenAI)
+    greeting_audio_url = None
+    try:
+        greeting_audio_url = await speak(initial_greeting_text) # Asíncrono
+    except Exception as e:
+        print(f"Error generating TTS audio for greeting: {e}")
+        # Si falla, se usará <Say> con la voz por defecto de Twilio
+        
     # La URL pública de tu aplicación, apuntando al endpoint WebSocket /stt
-    # Aquí es donde usas la URL pública de tu deployment.
-    # Usaremos una variable de entorno, si no está, usa un placeholder para recordar que debes configurarla.
+    # DEBES configurar TWILIO_WEBSOCKET_URL en tus variables de entorno en Railway.
+    # Por ejemplo: TWILIO_WEBSOCKET_URL=wss://insightia-production.up.railway.app/stt
     websocket_url = os.environ.get("TWILIO_WEBSOCKET_URL", "wss://insightia-production.up.railway.app/stt")
     
-    twiml = (
-        "<?xml version='1.0' encoding='UTF-8'?>"
-        "<Response>"
-        "  <Start>"
-        f"    <Stream url='{websocket_url}' />"
+    twiml_parts = [
+        "<?xml version='1.0' encoding='UTF-8'?>",
+        "<Response>",
+        "  <Start>",
+        f"    <Stream url='{websocket_url}' />",
         "  </Start>"
-        "  <Say>Por favor, dígame lo que necesita.</Say>" # Un saludo inicial opcional
-        "</Response>"
-    )
+    ]
+
+    if greeting_audio_url:
+        # Si se generó el audio TTS de OpenAI, lo reproducimos con <Play>
+        twiml_parts.append(f"  <Play>{greeting_audio_url}</Play>")
+    else:
+        # Si la generación de TTS falló, usamos <Say> con la voz por defecto de Twilio
+        twiml_parts.append(f"  <Say>{initial_greeting_text}</Say>")
+
+    twiml_parts.append("</Response>")
+    
+    twiml = "".join(twiml_parts)
+    print(f"Generated TwiML: {twiml}") # Para depuración
     return Response(content=twiml, media_type="text/xml")
