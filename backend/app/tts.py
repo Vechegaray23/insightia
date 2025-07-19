@@ -6,7 +6,7 @@ from botocore.client import Config  # Importar Config
 from tenacity import retry, stop_after_attempt, wait_random_exponential
 
 # Constants for the TTS configuration
-VOICE = os.environ.get("TTS_VOICE", "fable")
+VOICE = os.environ.get("TTS_VOICE", "alloy")
 MODEL = os.environ.get("TTS_MODEL", "tts-1")
 
 # --- R2 Configuration (UPDATED) ---
@@ -103,7 +103,8 @@ def speak(text: str) -> str:
     # NOTA: La URL pública ya incluye el bucket name
     url = f"{R2_PUBLIC_BASE_URL}/{key}"
 
-    # Comprobar si el objeto existe en R2 usando head_object de boto3 (operación autenticada)
+    # Comprobar si el objeto existe en R2 usando head_object de boto3 
+    # (operación autenticada)
     try:
         s3_client.head_object(Bucket=R2_BUCKET_NAME, Key=key)
         # Si head_object tiene éxito, el objeto existe, devolver la URL pública
