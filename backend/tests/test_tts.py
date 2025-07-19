@@ -66,15 +66,16 @@ def test_speak_generate(monkeypatch):
     assert calls["fetch"] == "hola"
     assert calls["upload"] == (key, b"audio-data")
 
+
 def test_upload_auth_header(monkeypatch):
     monkeypatch.setenv("R2_API_TOKEN", "testtoken")
     tts.API_TOKEN = "testtoken"
     called = {}
 
     def fake_put(url, content=None, headers=None):
-        called['headers'] = headers
+        called["headers"] = headers
         return DummyResp(200)
 
     monkeypatch.setattr(httpx, "put", fake_put)
     tts._upload_to_r2("file.mp3", b"data")
-    assert called['headers']["Authorization"] == "Bearer testtoken"
+    assert called["headers"]["Authorization"] == "Bearer testtoken"
