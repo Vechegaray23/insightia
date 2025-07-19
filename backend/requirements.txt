@@ -4,3 +4,4 @@ httpx
 tenacity
 boto3
 openai
+websockets
