@@ -15,7 +15,7 @@ async def health() -> dict[str, str]:
 @app.post("/voice")
 async def voice():
     """Return TwiML that plays a cached TTS greeting."""
-    text = "Hola, gracias por llamar, eres un puto genio"
+    text = "En un bosque mágico, un pequeño conejo encontró una estrella fugaz. Pidió un deseo: ¡chocolate infinito! Y así, el bosque se llenó de dulces sonrisas."
     try:
         url = speak(text)
         twiml = (

@@ -7,7 +7,7 @@ from tenacity import retry, stop_after_attempt, wait_random_exponential
 
 # Constants for the TTS configuration
 VOICE = os.environ.get("TTS_VOICE", "onyx")
-MODEL = os.environ.get("TTS_MODEL", "tts-1")
+MODEL = os.environ.get("TTS_MODEL", "tts-1-hd")
 
 # --- R2 Configuration (UPDATED) ---
 # Endpoint URL para R2 para operaciones autenticadas (boto3)
