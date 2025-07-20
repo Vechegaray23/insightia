@@ -11,19 +11,33 @@ from fastapi import WebSocket # Necesario para tipado y métodos asíncronos
 
 from .supabase import save_transcript
 
-SAMPLE_RATE = int(os.getenv("TWILIO_SAMPLE_RATE", "8000"))
+# Sample rate of the audio stream received from Twilio (μ-law at 8 kHz by default)
+INPUT_SAMPLE_RATE = int(os.getenv("TWILIO_SAMPLE_RATE", "8000"))
+# Target sample rate for the WAV sent to Whisper
+OUTPUT_SAMPLE_RATE = 16000
 CHUNK_SECONDS = 5
-CHUNK_SIZE = SAMPLE_RATE * CHUNK_SECONDS  # bytes for mu-law (1 byte per sample)
+CHUNK_SIZE = INPUT_SAMPLE_RATE * CHUNK_SECONDS  # bytes for mu-law (1 byte per sample)
 
 
 def mulaw_to_wav(data: bytes) -> bytes:
     """Convierte audio μ-law en un archivo WAV."""
     pcm = audioop.ulaw2lin(data, 2)
+
+    # Resample from the input sample rate to the output sample rate if necessary
+    if INPUT_SAMPLE_RATE != OUTPUT_SAMPLE_RATE:
+        pcm, _ = audioop.ratecv(
+            pcm,
+            2,  # sampwidth
+            1,  # nchannels
+            INPUT_SAMPLE_RATE,
+            OUTPUT_SAMPLE_RATE,
+            None,
+        )
     buffer = io.BytesIO()
     with wave.open(buffer, "wb") as wf:
         wf.setnchannels(1)
         wf.setsampwidth(2)
-        wf.setframerate(SAMPLE_RATE)
+        wf.setframerate(OUTPUT_SAMPLE_RATE)
         wf.writeframes(pcm)
     return buffer.getvalue()
 
