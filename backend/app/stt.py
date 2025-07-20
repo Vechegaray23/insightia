@@ -35,7 +35,7 @@ def transcribe_chunk(wav: bytes) -> str:
         raise RuntimeError("OPENAI_API_KEY not set")
     headers = {"Authorization": f"Bearer {api_key}"}
     files = {"file": ("audio.wav", wav, "audio/wav")}
-    data = {"model": "whisper-1", "lenguage": "es"}
+    data = {"model": "whisper-1", "language": "es"}
     
     try:
         resp = httpx.post(
