@@ -1,5 +1,4 @@
-"""Utilidades de STT con Whisper."""
-
+# backend/app/stt.py
 import audioop
 import io
 import os

@@ -1,3 +1,4 @@
+# backend/app/main.py
 import os
 from fastapi import FastAPI, Response, WebSocket
 import json # Necesario para parsear el mensaje inicial del WebSocket
@@ -28,8 +29,20 @@ async def websocket_stt(websocket: WebSocket):
     except Exception as e:
         print(f"Error receiving initial WebSocket message or call_id: {e}")
         # Continuar con el call_id por defecto si falla la obtención
-
+    
     # stt.process_stream ahora debe ser una función asíncrona
+    # En backend/app/main.py, dentro de websocket_stt
+    try:
+        initial_message = await websocket.receive_json()
+        print(f"DEBUG: Initial WebSocket message from Twilio: {json.dumps(initial_message, indent=2)}") # Añade esto
+        if initial_message.get("event") == "start":
+            call_sid = initial_message.get("start", {}).get("callSid")
+            if call_sid:
+                call_id = call_sid
+                print(f"[{call_id}] Received callSid: {call_id}")
+    except Exception as e:
+        print(f"Error receiving initial WebSocket message or call_id: {e}")
+        
     await stt.process_stream(websocket, call_id)
     print(f"[{call_id}] WebSocket connection closed.")
 
