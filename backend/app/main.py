@@ -5,6 +5,7 @@ import json # Necesario para parsear el mensaje inicial del WebSocket
 
 from .tts import speak
 from . import stt, wer
+app = FastAPI()
 
 @app.websocket("/stt")
 async def websocket_stt(websocket: WebSocket):
