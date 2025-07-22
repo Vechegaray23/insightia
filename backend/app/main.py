@@ -46,7 +46,6 @@ def metrics():
 async def health() -> dict[str, str]:
     """Health check endpoint used by the platform."""
     return {"status": "ok"}
-
 @app.post("/voice")
 async def voice():
     """
@@ -57,7 +56,6 @@ async def voice():
     
     greeting_audio_url = None
     try:
-        # Generamos el audio del saludo por adelantado para una respuesta rápida
         greeting_audio_url = await speak(initial_greeting_text)
     except Exception as e:
         print(f"Error generating TTS audio for greeting: {e}")
@@ -69,19 +67,19 @@ async def voice():
         "<Response>"
     ]
 
-    # Reproducir el saludo inicial
     if greeting_audio_url:
+        # Asegúrate de que no hay ningún punto y coma aquí
         twiml_parts.append(f"  <Play>{greeting_audio_url}</Play>")
     else:
-        # Fallback a Say si el TTS falla
         twiml_parts.append(f"  <Say>{initial_greeting_text}</Say>")
 
-    # Iniciar la conexión persistente del WebSocket para la conversación
+    # Estas son las partes críticas, sin caracteres extraños
     twiml_parts.append("  <Connect>")
     twiml_parts.append(f"    <Stream url='{websocket_url}' />")
     twiml_parts.append("  </Connect>")
     twiml_parts.append("</Response>")
     
+    # El .join() simplemente unirá las cadenas limpias
     twiml = "".join(twiml_parts)
     print(f"Generated TwiML for conversational flow: {twiml}")
     return Response(content=twiml, media_type="text/xml")
