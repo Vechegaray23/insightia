@@ -10,39 +10,29 @@ app = FastAPI()
 
 @app.websocket("/stt")
 async def websocket_stt(websocket: WebSocket):
-    """
-    Recibe audio μ-law de Twilio Media Streams y delega el procesamiento.
-    Intenta extraer el call_id de los metadatos iniciales de Twilio.
-    """
-    await websocket.accept() # Aceptar la conexión WebSocket
+    await websocket.accept()
 
-    call_id = "unknown-call" # Valor por defecto
+    call_id = "unknown-call"
 
     try:
-        # El primer mensaje de Twilio Media Streams suele ser un JSON con el evento "start"
+        # PRIMERA Y ÚNICA LLAMADA a receive_json() para obtener el evento "start"
         initial_message = await websocket.receive_json()
-        if initial_message.get("event") == "start":
-            call_sid = initial_message.get("start", {}).get("callSid")
-            if call_sid:
-                call_id = call_sid
-                print(f"[{call_id}] Received callSid: {call_id}") # Para depuración
-    except Exception as e:
-        print(f"Error receiving initial WebSocket message or call_id: {e}")
-        # Continuar con el call_id por defecto si falla la obtención
-    
-    # stt.process_stream ahora debe ser una función asíncrona
-    # En backend/app/main.py, dentro de websocket_stt
-    try:
-        initial_message = await websocket.receive_json()
-        print(f"DEBUG: Initial WebSocket message from Twilio: {json.dumps(initial_message, indent=2)}") # Añade esto
+        print(f"DEBUG: Initial WebSocket message from Twilio: {json.dumps(initial_message, indent=2)}") # Mantener este debug para el mensaje inicial
+        
         if initial_message.get("event") == "start":
             call_sid = initial_message.get("start", {}).get("callSid")
             if call_sid:
                 call_id = call_sid
                 print(f"[{call_id}] Received callSid: {call_id}")
+        else:
+            # Si el primer mensaje no es "start", podrías querer manejarlo o simplemente registrarlo
+            print(f"[{call_id}] Warning: First WebSocket message was not 'start' event: {initial_message.get('event')}")
+            
     except Exception as e:
         print(f"Error receiving initial WebSocket message or call_id: {e}")
-        
+        # La conexión podría cerrarse aquí si no se recibe un mensaje válido
+        return # Salir si no se puede inicializar correctamente
+
     await stt.process_stream(websocket, call_id)
     print(f"[{call_id}] WebSocket connection closed.")
 
