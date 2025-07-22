@@ -3,5 +3,7 @@ uvicorn
 httpx
 tenacity
 boto3
-openai
 websockets
+google-cloud-speech
+google-cloud-texttospeech
+google-api-core
