@@ -6,25 +6,26 @@ import json # Necesario para parsear el mensaje inicial del WebSocket
 from .tts import speak
 from . import stt, wer
 
-
-app = FastAPI()
 @app.websocket("/stt")
 async def websocket_stt(websocket: WebSocket):
     """
-    Punto de entrada para la conexión WebSocket de Twilio.
-    Acepta la conexión y delega todo el procesamiento al módulo STT.
+    Punto de entrada para la conexión WebSocket de Twilio con logging detallado.
     """
+    # Log #1: ¿Se está llamando a la función?
+    print("Endpoint /stt alcanzado. Intentando aceptar la conexión...")
     await websocket.accept()
-    print("WebSocket connection accepted from Twilio.")
+    # Log #2: ¿La conexión fue aceptada?
+    print("WebSocket connection accepted. Delegating to process_stream...")
     
     try:
-        # Pasa el control total al procesador de stream
         await stt.process_stream(websocket)
-    except Exception as e:
-        # Captura cualquier error inesperado que pueda cerrar la conexión
-        print(f"Error in WebSocket handler: {e}")
+    except Exception:
+        # Log #3: Si CUALQUIER error ocurre, lo veremos aquí.
+        print("!!! An unexpected error occurred in the WebSocket handler !!!")
+        print(traceback.format_exc()) # Imprime la traza completa del error
     finally:
-        print("WebSocket connection closed.")
+        # Log #4: ¿Cuándo se está cerrando la conexión?
+        print("WebSocket handler finished. Connection will now close.")
 
 @app.post("/wer")
 def calc_wer(payload: dict) -> dict:
