@@ -5,6 +5,8 @@ import json # Necesario para parsear el mensaje inicial del WebSocket
 
 from .tts import speak
 from . import stt, wer
+print("--- DEPLOYMENT VERSION: 2025-07-22-v3 ---") # <--- AÑADE ESTA LÍNEA
+
 app = FastAPI()
 
 @app.websocket("/stt")
