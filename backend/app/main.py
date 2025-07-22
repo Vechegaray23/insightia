@@ -6,36 +6,25 @@ import json # Necesario para parsear el mensaje inicial del WebSocket
 from .tts import speak
 from . import stt, wer
 
-app = FastAPI()
 
+app = FastAPI()
 @app.websocket("/stt")
 async def websocket_stt(websocket: WebSocket):
+    """
+    Punto de entrada para la conexión WebSocket de Twilio.
+    Acepta la conexión y delega todo el procesamiento al módulo STT.
+    """
     await websocket.accept()
-
-    call_id = "unknown-call"
-
+    print("WebSocket connection accepted from Twilio.")
+    
     try:
-        # PRIMERA Y ÚNICA LLAMADA a receive_json() para obtener el evento "start"
-        initial_message = await websocket.receive_json()
-        print(f"DEBUG: Initial WebSocket message from Twilio: {json.dumps(initial_message, indent=2)}") # Mantener este debug para el mensaje inicial
-        
-        if initial_message.get("event") == "start":
-            call_sid = initial_message.get("start", {}).get("callSid")
-            if call_sid:
-                call_id = call_sid
-                print(f"[{call_id}] Received callSid: {call_id}")
-        else:
-            # Si el primer mensaje no es "start", podrías querer manejarlo o simplemente registrarlo
-            print(f"[{call_id}] Warning: First WebSocket message was not 'start' event: {initial_message.get('event')}")
-            
+        # Pasa el control total al procesador de stream
+        await stt.process_stream(websocket)
     except Exception as e:
-        print(f"Error receiving initial WebSocket message or call_id: {e}")
-        # La conexión podría cerrarse aquí si no se recibe un mensaje válido
-        return # Salir si no se puede inicializar correctamente
-
-    await stt.process_stream(websocket, call_id)
-    print(f"[{call_id}] WebSocket connection closed.")
-
+        # Captura cualquier error inesperado que pueda cerrar la conexión
+        print(f"Error in WebSocket handler: {e}")
+    finally:
+        print("WebSocket connection closed.")
 
 @app.post("/wer")
 def calc_wer(payload: dict) -> dict:
