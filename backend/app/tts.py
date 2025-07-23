@@ -18,7 +18,7 @@ from google.oauth2 import service_account
 # Elige una voz WaveNet de alta calidad para español (es-ES)
 # Puedes ver la lista completa en la documentación de Google Cloud Text-to-Speech
 # Ejemplo: es-ES-Wavenet-C (femenina), es-ES-Wavenet-B (masculina)
-TTS_VOICE_NAME = os.environ.get("TTS_VOICE_NAME", "es-ES-Wavenet-C")
+TTS_VOICE_NAME = os.environ.get("TTS_VOICE_NAME", "es-US-Chirp3-HD-Charon")
 # Formato de audio para la salida. MP3 es bueno para almacenamiento y reproducción web/Twilio.
 TTS_AUDIO_ENCODING = os.environ.get("TTS_AUDIO_ENCODING", "MP3")
 # Frecuencia de muestreo. Generar a 16kHz es un buen balance. Twilio hará downsampling a 8kHz.

@@ -68,7 +68,7 @@ async def voice():
     3. Mantiene la llamada activa para que el stream pueda continuar.
     """
     print("VOICE: Endpoint /voice activado (VERSIÓN FINAL Y LIMPIA).")
-    initial_greeting_text = "Nuestra misión es compartir la belleza de las palabras y las historias que se tejen con ellas. ¿Cómo puedo ayudarte hoy?"
+    initial_greeting_text = "¿Cómo puedo ayudarte hoy?"
     greeting_audio_url = None
 
     try:
@@ -97,7 +97,7 @@ async def voice():
         twiml_parts.append(f"  <Say>{initial_greeting_text}</Say>")
 
     twiml_parts.extend([
-        "  <Pause length='60'/>", # Mantiene la llamada activa para que el stream continúe.
+        "  <Pause length='20'/>", # Mantiene la llamada activa para que el stream continúe.
         "</Response>"
     ])
 
