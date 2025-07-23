@@ -56,34 +56,32 @@ async def voice():
     Devuelve TwiML que reproduce un saludo TTS y luego inicia una 
     conversación bidireccional continua a través de un WebSocket.
     """
+    print("--- VOICE ENDPOINT TRIGGERED - VERSION 2025-07-22-FINAL-CHECK ---") # Nuevo log de verificación
     initial_greeting_text = "Nuestra misión es compartir la belleza de las palabras y las historias que se tejen con ellas. ¿Cómo puedo ayudarte hoy?"
-    
+
     greeting_audio_url = None
     try:
         greeting_audio_url = await speak(initial_greeting_text)
     except Exception as e:
         print(f"Error generating TTS audio for greeting: {e}")
-        
+
     websocket_url = os.environ.get("TWILIO_WEBSOCKET_URL", "wss://insightia-production.up.railway.app/stt")
-    
+
     twiml_parts = [
         "<?xml version='1.0' encoding='UTF-8'?>",
         "<Response>"
     ]
 
     if greeting_audio_url:
-        # Asegúrate de que no hay ningún punto y coma aquí
-        twiml_parts.append(f"  <Play>{greeting_audio_url}</Play>")
+        twiml_parts.append(f"<Play>{greeting_audio_url}</Play>") # Eliminados espacios para simplificar
     else:
-        twiml_parts.append(f"  <Say>{initial_greeting_text}</Say>")
+        twiml_parts.append(f"<Say>{initial_greeting_text}</Say>")
 
-    # Estas son las partes críticas, sin caracteres extraños
-    twiml_parts.append("  <Connect>")
-    twiml_parts.append(f"    <Stream url='{websocket_url}' />")
-    twiml_parts.append("  </Connect>")
+    twiml_parts.append("<Connect>")
+    twiml_parts.append(f"<Stream url='{websocket_url}'/>") # Eliminados espacios para simplificar
+    twiml_parts.append("</Connect>")
     twiml_parts.append("</Response>")
-    
-    # El .join() simplemente unirá las cadenas limpias
+
     twiml = "".join(twiml_parts)
-    print(f"Generated TwiML for conversational flow: {twiml}")
+    print(f"CLEAN TwiML check: {twiml}") # Nuevo log de verificación
     return Response(content=twiml, media_type="text/xml")
