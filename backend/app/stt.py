@@ -1,4 +1,4 @@
-# backend/app/stt.py
+# backend/app/stt.py (VERSIÓN FINAL CORREGIDA)
 
 import asyncio
 import audioop
@@ -31,17 +31,15 @@ except Exception as e:
     print(f"Error CRÍTICO al inicializar Google Speech Client: {e}")
 
 def mulaw_to_linear16(data: bytes) -> bytes:
-    """Convierte audio μ-law (8kHz, mono) a PCM LINEAR16 (8kHz, mono)."""
     return audioop.ulaw2lin(data, 2)
 
 
 async def process_stream(ws: WebSocket, call_id: str) -> None:
-    print(f"STT.PY - A: Función process_stream INICIADA para call_id: {call_id}")
-
     if not speech_client:
-        print(f"[{call_id}] STT.PY - ERROR: Google Speech Client no inicializado. Abortando.")
+        print(f"[{call_id}] Abortando: Google Speech Client no inicializado.")
         return
 
+    print(f"[{call_id}] Iniciando el procesamiento del stream de STT.")
     async_queue = asyncio.Queue()
 
     async def request_generator():
@@ -57,13 +55,13 @@ async def process_stream(ws: WebSocket, call_id: str) -> None:
             for result in response.results:
                 if result.is_final:
                     text = result.alternatives[0].transcript.strip()
-                    ts_end = time.time()
                     if text:
                         print(f"[{call_id}] Transcripción final: '{text}'")
+                        ts_end = time.time()
                         asyncio.run_coroutine_threadsafe(
                             save_transcript(call_id, ts_start, ts_end, text), loop
                         )
-                    ts_start = ts_end
+                        ts_start = ts_end
 
     async def receive_audio_task():
         while True:
@@ -74,12 +72,11 @@ async def process_stream(ws: WebSocket, call_id: str) -> None:
                 audio_chunk = base64.b64decode(data["media"]["payload"])
                 await async_queue.put(mulaw_to_linear16(audio_chunk))
             elif event == "stop":
-                print(f"[{call_id}] Evento 'stop' recibido. Finalizando recepción de audio.")
+                print(f"[{call_id}] Evento 'stop' recibido. Finalizando recepción.")
                 await async_queue.put(None)
                 break
 
     try:
-        print(f"STT.PY - B: Configurando Google STT.")
         config = speech.RecognitionConfig(
             encoding=speech.RecognitionConfig.AudioEncoding.LINEAR16,
             sample_rate_hertz=SAMPLE_RATE,
@@ -89,22 +86,25 @@ async def process_stream(ws: WebSocket, call_id: str) -> None:
         )
         streaming_config = speech.StreamingRecognitionConfig(config=config, interim_results=False)
 
-        print(f"STT.PY - C: Creando tareas asíncronas.")
         receive_task = asyncio.create_task(receive_audio_task())
-
         requests = request_generator()
-        responses_iterator = speech_client.streaming_recognize(requests=requests)
-        print(f"STT.PY - D: Llamada a Google STT API realizada. Esperando respuestas.")
+
+        # --- LA CORRECCIÓN ESTÁ AQUÍ ---
+        # Añadimos el argumento 'config=streaming_config' que faltaba.
+        responses_iterator = speech_client.streaming_recognize(
+            config=streaming_config,
+            requests=requests
+        )
+        # --- FIN DE LA CORRECCIÓN ---
+        
+        print(f"[{call_id}] Conexión con Google STT API establecida. Escuchando audio...")
 
         loop = asyncio.get_running_loop()
         await loop.run_in_executor(None, process_responses, responses_iterator, loop)
-        print(f"STT.PY - E: El procesamiento de respuestas en el executor ha finalizado.")
 
         await receive_task
-        print(f"STT.PY - F: La tarea de recepción de audio ha finalizado.")
 
     except Exception as e:
-        print(f"STT.PY - ERROR CRÍTICO en process_stream: {e}")
-        print(traceback.format_exc())
+        print(f"[{call_id}] ERROR CRÍTICO en process_stream: {e}\n{traceback.format_exc()}")
     finally:
-        print(f"STT.PY - G: Bloque 'finally' alcanzado. Finalizando el stream para call_id: {call_id}.")
+        print(f"[{call_id}] Finalizando el stream STT.")
