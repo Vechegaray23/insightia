@@ -92,8 +92,8 @@ async def process_stream(ws: WebSocket, call_id: str) -> None:
         # --- LA CORRECCIÓN ESTÁ AQUÍ ---
         # Añadimos el argumento 'config=streaming_config' que faltaba.
         responses_iterator = speech_client.streaming_recognize(
-            config=streaming_config,
-            requests=requests
+            streaming_config=streaming_config,
+            requests=request_generator()
         )
         # --- FIN DE LA CORRECCIÓN ---
         
