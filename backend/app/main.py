@@ -11,24 +11,38 @@ app = FastAPI()
 
 @app.websocket("/stt")
 async def websocket_stt(websocket: WebSocket):
-    """
-    Punto de entrada para la conexión WebSocket de Twilio con logging detallado.
-    """
-    # Log #1: ¿Se está llamando a la función?
-    print("Endpoint /stt alcanzado. Intentando aceptar la conexión...")
     await websocket.accept()
-    # Log #2: ¿La conexión fue aceptada?
-    print("WebSocket connection accepted. Delegating to process_stream...")
-    
+    call_id = None
+    stream_sid = None
+
     try:
-        await stt.process_stream(websocket)
-    except Exception:
-        # Log #3: Si CUALQUIER error ocurre, lo veremos aquí.
-        print("!!! An unexpected error occurred in the WebSocket handler !!!")
-        print(traceback.format_exc()) # Imprime la traza completa del error
+        # Bucle para asegurar que procesamos el mensaje 'start'
+        while True:
+            message = await websocket.receive_text()
+            data = json.loads(message)
+            event = data.get("event")
+
+            if event == "start":
+                stream_sid = data.get("streamSid")
+                call_id = data.get("start", {}).get("callSid")
+                print(f"[{call_id}] Stream started via main.py. (StreamSid: {stream_sid})")
+                break # Salimos del bucle una vez tenemos el call_id
+            elif event == "connected":
+                print("WebSocket connection reported as 'connected' by Twilio.")
+            else:
+                # Ignorar otros eventos como 'media' en esta fase
+                print(f"Ignoring event '{event}' during init phase.")
+
+        if not call_id:
+            raise RuntimeError("Could not extract call_id from 'start' event.")
+
+        # Ahora delegamos, pasando el WebSocket y el call_id
+        await stt.process_stream(websocket, call_id)
+
+    except Exception as e:
+        print(f"!!! Error in websocket_stt handler: {e} !!!")
     finally:
-        # Log #4: ¿Cuándo se está cerrando la conexión?
-        print("WebSocket handler finished. Connection will now close.")
+        print(f"[{call_id or 'unknown'}] WebSocket handler in main.py finished.")
 
 @app.post("/wer")
 def calc_wer(payload: dict) -> dict:
@@ -69,19 +83,25 @@ async def voice():
 
     twiml_parts = [
         "<?xml version='1.0' encoding='UTF-8'?>",
-        "<Response>"
+        "<Response>",
+        "  <Start>",  # <-- CAMBIO
+        f"    <Stream url='{websocket_url}' />",
+        "  </Start>"  # <-- CAMBIO
     ]
 
     if greeting_audio_url:
-        twiml_parts.append(f"<Play>{greeting_audio_url}</Play>") # Eliminados espacios para simplificar
+        twiml_parts.append(f"  <Play>{greeting_audio_url}</Play>")
     else:
-        twiml_parts.append(f"<Say>{initial_greeting_text}</Say>")
+        twiml_parts.append(f"  <Say>{initial_greeting_text}</Say>")
 
-    twiml_parts.append("<Connect>")
-    twiml_parts.append(f"<Stream url='{websocket_url}'/>") # Eliminados espacios para simplificar
-    twiml_parts.append("</Connect>")
+    # Añadir una pausa para mantener la llamada viva
+    twiml_parts.append("  <Pause length='60'/>") # Aumentado a 60s
     twiml_parts.append("</Response>")
 
     twiml = "".join(twiml_parts)
+
+
+
+
     print(f"CLEAN TwiML check: {twiml}") # Nuevo log de verificación
     return Response(content=twiml, media_type="text/xml")
