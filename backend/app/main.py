@@ -21,20 +21,9 @@ async def websocket_stt(websocket: WebSocket):
     try:
         # El primer mensaje de Twilio Media Streams suele ser un JSON con el evento "start"
         initial_message = await websocket.receive_json()
-        if initial_message.get("event") == "start":
-            call_sid = initial_message.get("start", {}).get("callSid")
-            if call_sid:
-                call_id = call_sid
-                print(f"[{call_id}] Received callSid: {call_id}") # Para depuración
-    except Exception as e:
-        print(f"Error receiving initial WebSocket message or call_id: {e}")
-        # Continuar con el call_id por defecto si falla la obtención
-    
-    # stt.process_stream ahora debe ser una función asíncrona
-    # En backend/app/main.py, dentro de websocket_stt
-    try:
-        initial_message = await websocket.receive_json()
-        print(f"DEBUG: Initial WebSocket message from Twilio: {json.dumps(initial_message, indent=2)}") # Añade esto
+        print(
+            f"DEBUG: Initial WebSocket message from Twilio: {json.dumps(initial_message, indent=2)}"
+        )
         if initial_message.get("event") == "start":
             call_sid = initial_message.get("start", {}).get("callSid")
             if call_sid:
