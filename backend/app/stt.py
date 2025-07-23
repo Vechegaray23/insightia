@@ -38,6 +38,36 @@ def mulaw_to_wav(data: bytes) -> bytes:
         wf.writeframes(pcm)
     return buffer.getvalue()
 
+def preprocess_wav(wav: bytes) -> bytes:
+    """Ajusta ganancia y aplica un filtro pasa alto básico."""
+    with wave.open(io.BytesIO(wav), "rb") as wf:
+        sample_rate = wf.getframerate()
+        frames = wf.readframes(wf.getnframes())
+
+    rms = audioop.rms(frames, 2)
+    target = 10000
+    gain = target / rms if rms else 1.0
+
+    samples = bytearray()
+    prev = 0
+    hp = 0.95
+    for i in range(0, len(frames), 2):
+        sample = int.from_bytes(frames[i:i+2], "little", signed=True)
+        sample = int(sample * gain)
+        filtered = sample - int(prev * hp)
+        prev = sample
+        filtered = max(min(filtered, 32767), -32768)
+        samples += int(filtered).to_bytes(2, "little", signed=True)
+
+    out = io.BytesIO()
+    with wave.open(out, "wb") as wf:
+        wf.setnchannels(1)
+        wf.setsampwidth(2)
+        wf.setframerate(sample_rate)
+        wf.writeframes(bytes(samples))
+    return out.getvalue()
+
+
 
 def transcribe_chunk(wav: bytes) -> str:
     """Envía audio a Whisper y devuelve el texto."""
@@ -92,7 +122,7 @@ async def process_stream(ws: WebSocket, call_id: str) -> None:
                                 raw = buffer[:CHUNK_SIZE]
                                 buffer = buffer[CHUNK_SIZE:]
 
-                                wav = mulaw_to_wav(raw)
+                                wav = preprocess_wav(mulaw_to_wav(raw))
                                 text = transcribe_chunk(wav)
                                 ts_end = time.time()
 
@@ -110,7 +140,7 @@ async def process_stream(ws: WebSocket, call_id: str) -> None:
                             print(
                                 f"[{call_id}] Processing remaining buffer ({len(buffer)} bytes) before stopping."
                             )
-                            wav = mulaw_to_wav(buffer)
+                            wav = preprocess_wav(mulaw_to_wav(buffer))
                             text = transcribe_chunk(wav)
                             ts_end = time.time()
                             if text and text.strip():
