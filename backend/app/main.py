@@ -1,107 +1,100 @@
 # backend/app/main.py
-import os
-from fastapi import FastAPI, Response, WebSocket
-import json # Necesario para parsear el mensaje inicial del WebSocket
 
-from .tts import speak
-from . import stt, wer
-print("--- DEPLOYMENT VERSION: 2025-07-22-v3 ---") # <--- AÑADE ESTA LÍNEA
+import os
+import json
+import traceback
+from fastapi import FastAPI, Response, WebSocket
+from . import stt, wer, tts
 
 app = FastAPI()
 
+# --- WebSocket Endpoint ---
 @app.websocket("/stt")
 async def websocket_stt(websocket: WebSocket):
+    print("MAIN.PY-STT: 1. WebSocket ACEPTADO")
     await websocket.accept()
     call_id = None
-    stream_sid = None
 
     try:
-        # Bucle para asegurar que procesamos el mensaje 'start'
+        print("MAIN.PY-STT: 2. Entrando en bucle de inicialización para obtener CallSid.")
+        # Bucle para encontrar el evento 'start', que contiene el CallSid.
         while True:
             message = await websocket.receive_text()
+            print(f"MAIN.PY-STT: 3. Mensaje de inicialización recibido: {message[:250]}")
             data = json.loads(message)
             event = data.get("event")
 
             if event == "start":
-                stream_sid = data.get("streamSid")
                 call_id = data.get("start", {}).get("callSid")
-                print(f"[{call_id}] Stream started via main.py. (StreamSid: {stream_sid})")
-                break # Salimos del bucle una vez tenemos el call_id
+                print(f"[{call_id}] Evento 'start' procesado. CallSid obtenido.")
+                break  # Salir del bucle una vez que tenemos el call_id
             elif event == "connected":
-                print("WebSocket connection reported as 'connected' by Twilio.")
+                print("Evento 'connected' de Twilio recibido.")
             else:
-                # Ignorar otros eventos como 'media' en esta fase
-                print(f"Ignoring event '{event}' during init phase.")
+                # Ignorar otros eventos como 'media' que podrían llegar durante la inicialización
+                pass
 
         if not call_id:
-            raise RuntimeError("Could not extract call_id from 'start' event.")
+            raise RuntimeError("No se pudo extraer el call_id del evento 'start'.")
 
-        # Ahora delegamos, pasando el WebSocket y el call_id
+        print(f"MAIN.PY-STT: 4. Llamando a stt.process_stream para call_id: {call_id}")
         await stt.process_stream(websocket, call_id)
+        print(f"MAIN.PY-STT: 5. stt.process_stream ha terminado su ejecución.")
 
     except Exception as e:
-        print(f"!!! Error in websocket_stt handler: {e} !!!")
+        print(f"MAIN.PY-STT: ERROR CRÍTICO en el manejador del WebSocket: {e}")
+        print(traceback.format_exc())
     finally:
-        print(f"[{call_id or 'unknown'}] WebSocket handler in main.py finished.")
+        # Este bloque se ejecutará siempre, indicando que la función está terminando.
+        print(f"MAIN.PY-STT: 6. Bloque 'finally' alcanzado. [{call_id or 'unknown'}] El manejador del WebSocket ha finalizado.")
 
-@app.post("/wer")
-def calc_wer(payload: dict) -> dict:
-    """Calcular WER entre referencia e hipótesis y registrar."""
-    ref = payload.get("reference", "")
-    hyp = payload.get("hypothesis", "")
-    score = wer.wer(ref, hyp)
-    wer.metrics.add(score)
-    return {"wer": score}
-
-
-@app.get("/metrics")
-def metrics():
-    """Obtener métricas de WER diarias."""
-    return wer.metrics.metrics()
-
-
-@app.get("/health")
-async def health() -> dict[str, str]:
-    """Health check endpoint used by the platform."""
-    return {"status": "ok"}
+# --- TwiML Endpoint ---
 @app.post("/voice")
 async def voice():
-    """
-    Devuelve TwiML que reproduce un saludo TTS y luego inicia una 
-    conversación bidireccional continua a través de un WebSocket.
-    """
-    print("--- VOICE ENDPOINT TRIGGERED - VERSION 2025-07-22-FINAL-CHECK ---") # Nuevo log de verificación
+    """Devuelve TwiML para iniciar el stream y la llamada."""
+    print("VOICE: Endpoint /voice activado.")
     initial_greeting_text = "Nuestra misión es compartir la belleza de las palabras y las historias que se tejen con ellas. ¿Cómo puedo ayudarte hoy?"
-
     greeting_audio_url = None
     try:
-        greeting_audio_url = await speak(initial_greeting_text)
+        greeting_audio_url = await tts.speak(initial_greeting_text)
     except Exception as e:
-        print(f"Error generating TTS audio for greeting: {e}")
+        print(f"VOICE: Error generando audio TTS: {e}")
 
-    websocket_url = os.environ.get("TWILIO_WEBSOCKET_URL", "wss://insightia-production.up.railway.app/stt")
+    websocket_url = os.environ.get("TWILIO_WEBSOCKET_URL")
+    if not websocket_url:
+        return Response(content="Error: TWILIO_WEBSOCKET_URL no está configurada.", status_code=500)
 
+    # Usar <Start> para un stream no bloqueante y <Pause> para mantener la llamada activa.
     twiml_parts = [
         "<?xml version='1.0' encoding='UTF-8'?>",
         "<Response>",
-        "  <Start>",  # <-- CAMBIO
+        "  <Start>",
         f"    <Stream url='{websocket_url}' />",
-        "  </Start>"  # <-- CAMBIO
+        "  </Start>"
     ]
-
     if greeting_audio_url:
         twiml_parts.append(f"  <Play>{greeting_audio_url}</Play>")
     else:
         twiml_parts.append(f"  <Say>{initial_greeting_text}</Say>")
 
-    # Añadir una pausa para mantener la llamada viva
-    twiml_parts.append("  <Pause length='60'/>") # Aumentado a 60s
-    twiml_parts.append("</Response>")
+    twiml_parts.extend(["  <Pause length='60'/>", "</Response>"])
 
     twiml = "".join(twiml_parts)
-
-
-
-
-    print(f"CLEAN TwiML check: {twiml}") # Nuevo log de verificación
+    print(f"VOICE: TwiML generado:\n{twiml}")
     return Response(content=twiml, media_type="text/xml")
+
+# --- Endpoints de Soporte ---
+@app.get("/health")
+async def health() -> dict[str, str]:
+    return {"status": "ok"}
+
+@app.post("/wer")
+def calc_wer(payload: dict) -> dict:
+    ref = payload.get("reference", "")
+    hyp = payload.get("hypothesis", "")
+    score = wer.wer(ref, hyp)
+    return {"wer": score}
+
+@app.get("/metrics")
+def metrics():
+    return {}
