@@ -6,8 +6,7 @@ from fastapi import WebSocket
 
 from .supabase import save_transcript # Asumiendo que esta función es para guardar transcripciones
 from .tts import speak # Importamos speak para poder generar audio de respuesta
-# TODO: Importa aquí tu servicio o función para interactuar con tu LLM (e.g., OpenAI, Gemini)
-# from .llm import get_llm_response
+
 
 async def process_stream(ws: WebSocket, call_id: str) -> None:
     """
