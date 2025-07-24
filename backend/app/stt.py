@@ -7,7 +7,7 @@ import wave
 import httpx
 import json
 import base64
-from fastapi import WebSocket # Necesario para tipado y métodos asíncronos
+from fastapi import WebSocket  # Necesario para tipado y métodos asíncronos
 
 from .supabase import save_transcript
 
@@ -38,19 +38,25 @@ def transcribe_chunk(wav: bytes) -> str:
     headers = {"Authorization": f"Bearer {api_key}"}
     files = {"file": ("audio.wav", wav, "audio/wav")}
     data = {"model": "whisper-1", "language": "es"}
-    
+
     try:
         resp = httpx.post(
-            "https://api.openai.com/v1/audio/transcriptions", headers=headers, data=data, files=files, timeout=5 # Añadir timeout
+            "https://api.openai.com/v1/audio/transcriptions",
+            headers=headers,
+            data=data,
+            files=files,
+            timeout=5,  # Añadir timeout
         )
-        resp.raise_for_status() # Lanza un HTTPStatusError para códigos de error 4xx/5xx
+        resp.raise_for_status()  # Lanza un HTTPStatusError para códigos de error 4xx/5xx
         return resp.json().get("text", "")
     except httpx.RequestError as e:
         print(f"An error occurred while requesting Whisper API: {e}")
-        return "" # Devuelve cadena vacía en caso de error de red/conexión
+        return ""  # Devuelve cadena vacía en caso de error de red/conexión
     except httpx.HTTPStatusError as e:
-        print(f"Whisper API returned an error {e.response.status_code}: {e.response.text}")
-        return "" # Devuelve cadena vacía en caso de error de API
+        print(
+            f"Whisper API returned an error {e.response.status_code}: {e.response.text}"
+        )
+        return ""  # Devuelve cadena vacía en caso de error de API
 
 
 async def process_stream(ws: WebSocket, call_id: str) -> None:
@@ -60,12 +66,12 @@ async def process_stream(ws: WebSocket, call_id: str) -> None:
     """
     buffer = b""
     ts_start = time.time()
-    
+
     print(f"[{call_id}] Starting STT stream processing.")
 
-    stream_active = True # Controla el bucle principal
+    stream_active = True  # Controla el bucle principal
     try:
-        while stream_active: 
+        while stream_active:
             message = await ws.receive()  # Espera por cualquier tipo de mensaje
 
             if "text" in message:
@@ -88,7 +94,9 @@ async def process_stream(ws: WebSocket, call_id: str) -> None:
                                 ts_end = time.time()
 
                                 if text and text.strip():
-                                    await save_transcript(call_id, ts_start, ts_end, text)
+                                    await save_transcript(
+                                        call_id, ts_start, ts_end, text
+                                    )
                                     print(f"[{call_id}] Transcribed: {text}")
                                     await ws.send_text(text)
 
@@ -113,14 +121,22 @@ async def process_stream(ws: WebSocket, call_id: str) -> None:
                         print(f"[{call_id}] Received control message: {event}")
 
                 except json.JSONDecodeError:
-                    print(f"[{call_id}] Received non-JSON text message: {message['text']}")
-            
-            elif message is None: # La conexión WebSocket se cerró inesperadamente por el cliente
-                print(f"[{call_id}] WebSocket connection closed by client unexpectedly.")
-                stream_active = False # Salir del bucle
-                
+                    print(
+                        f"[{call_id}] Received non-JSON text message: {message['text']}"
+                    )
+
+            elif (
+                message is None
+            ):  # La conexión WebSocket se cerró inesperadamente por el cliente
+                print(
+                    f"[{call_id}] WebSocket connection closed by client unexpectedly."
+                )
+                stream_active = False  # Salir del bucle
+
     except Exception as e:
         print(f"[{call_id}] Error processing stream: {e}")
     finally:
-        print(f"[{call_id}] STT stream processing finished. Final buffer size: {len(buffer)}")
+        print(
+            f"[{call_id}] STT stream processing finished. Final buffer size: {len(buffer)}"
+        )
         # El búfer ya fue procesado si se recibió un evento 'stop'.

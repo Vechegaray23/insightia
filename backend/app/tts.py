@@ -1,14 +1,19 @@
 import hashlib
 import os
 import httpx
-import asyncio # Necesario para asyncio.sleep y para que retry funcione con async
+import asyncio  # Necesario para asyncio.sleep y para que retry funcione con async
+
 try:
     import boto3  # type: ignore
     from botocore.client import Config  # type: ignore
 except Exception:  # pragma: no cover - boto3 might not be available
     boto3 = None
     Config = None
-from tenacity import retry, stop_after_attempt, wait_random_exponential, AsyncRetrying # Usar AsyncRetrying
+from tenacity import (
+    retry,
+    stop_after_attempt,
+    wait_random_exponential,
+)  # Usar AsyncRetrying
 
 # Constants for the TTS configuration
 VOICE = os.environ.get("TTS_VOICE", "onyx")
@@ -16,9 +21,7 @@ MODEL = os.environ.get("TTS_MODEL", "tts-1")
 
 # --- R2 Configuration (UPDATED) ---
 # Endpoint URL para R2 para operaciones autenticadas (boto3)
-R2_ENDPOINT_URL = os.environ.get(
-    "R2_ENDPOINT_URL"
-)
+R2_ENDPOINT_URL = os.environ.get("R2_ENDPOINT_URL")
 # Nombre del bucket de R2
 R2_BUCKET_NAME = os.environ.get("R2_BUCKET_NAME", "mvp-audio")
 # Claves de acceso para autenticación S3 (Access Key ID y Secret Access Key de R2)
@@ -57,10 +60,13 @@ async def _fetch_tts_audio(text: str) -> bytes:
     headers = {"Authorization": f"Bearer {api_key}"}
     payload = {"model": MODEL, "voice": VOICE, "input": text}
     # Usar httpx.AsyncClient para llamadas HTTP asíncronas
-    async with httpx.AsyncClient(timeout=10) as client: # Añadir timeout
-        resp = await client.post("https://api.openai.com/v1/audio/speech", headers=headers, json=payload)
+    async with httpx.AsyncClient(timeout=10) as client:  # Añadir timeout
+        resp = await client.post(
+            "https://api.openai.com/v1/audio/speech", headers=headers, json=payload
+        )
     resp.raise_for_status()
     return resp.content
+
 
 # Modificación: Hacer _upload_to_r2 asíncrona
 async def _upload_to_r2(key: str, data: bytes) -> None:
@@ -71,7 +77,13 @@ async def _upload_to_r2(key: str, data: bytes) -> None:
     # Por simplicidad aquí, la llamaremos directamente, pero ten en cuenta esto en producción.
     # Para una implementación puramente asíncrona, considera 'aioboto3'.
     if s3_client:
-        await asyncio.to_thread(s3_client.put_object, Bucket=R2_BUCKET_NAME, Key=key, Body=data, ContentType="audio/mpeg")
+        await asyncio.to_thread(
+            s3_client.put_object,
+            Bucket=R2_BUCKET_NAME,
+            Key=key,
+            Body=data,
+            ContentType="audio/mpeg",
+        )
     else:
         raise RuntimeError("S3 client not initialized. Cannot upload to R2.")
 
@@ -94,19 +106,20 @@ async def speak(text: str) -> str:
     # Comprobar si el objeto existe en R2 usando head_object de boto3
     try:
         if s3_client:
-            await asyncio.to_thread(s3_client.head_object, Bucket=R2_BUCKET_NAME, Key=key)
-            return url # Si head_object tiene éxito, el objeto existe, devolver la URL pública
+            await asyncio.to_thread(
+                s3_client.head_object, Bucket=R2_BUCKET_NAME, Key=key
+            )
+            return url  # Si head_object tiene éxito, el objeto existe, devolver la URL pública
         else:
             raise RuntimeError("S3 client not initialized. Cannot check R2.")
     except s3_client.exceptions.ClientError as e:
         if e.response["Error"]["Code"] == "404":
             pass  # Objeto no encontrado, continuar para generarlo y subirlo
         else:
-            raise # Otro error de S3, re-lanzar
+            raise  # Otro error de S3, re-lanzar
     except Exception as e:
         print(f"Error checking R2 cache for key {key}: {e}")
-        pass # Si hay un error al verificar la caché, intenta generar de nuevo
-
+        pass  # Si hay un error al verificar la caché, intenta generar de nuevo
 
     # Si no está en caché, generar y subir
     try:
@@ -116,4 +129,4 @@ async def speak(text: str) -> str:
         return url
     except Exception as e:
         print(f"Failed to generate or upload TTS for '{text}': {e}")
-        raise # Re-lanzar para que el llamador lo maneje (ej. fallback a <Say>)
+        raise  # Re-lanzar para que el llamador lo maneje (ej. fallback a <Say>)
