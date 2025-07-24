@@ -26,6 +26,8 @@ CHUNK_SIZE = 320
 
 # --- Configuración de Google Cloud ---
 speech_client = None
+recognition_config = None
+streaming_config = None
 if speech and service_account:
     try:
         GOOGLE_APPLICATION_CREDENTIALS_JSON = os.getenv(
@@ -40,6 +42,17 @@ if speech and service_account:
         else:
             speech_client = speech.SpeechClient()
         logger.info("Google Speech Client inicializado correctamente.")
+        recognition_config = speech.RecognitionConfig(
+            encoding=speech.RecognitionConfig.AudioEncoding.LINEAR16,
+            sample_rate_hertz=SAMPLE_RATE,
+            language_code="es-ES",
+            model="phone_call",
+            enable_automatic_punctuation=True,
+        )
+        streaming_config = speech.StreamingRecognitionConfig(
+            config=recognition_config,
+            interim_results=False,
+        )
     except Exception as e:
         logger.exception("Error CRÍTICO al inicializar Google Speech Client: %s", e)
 else:
@@ -77,12 +90,13 @@ async def process_stream(ws: WebSocket, call_id: str) -> None:
         return
 
     logger.info("[%s] Iniciando el procesamiento del stream de STT.", call_id)
+    loop = asyncio.get_running_loop()
     async_queue = asyncio.Queue()
 
-    async def request_generator():
+    def generate_requests():
         yield speech.StreamingRecognizeRequest(streaming_config=streaming_config)
         while True:
-            chunk = await async_queue.get()
+            chunk = asyncio.run_coroutine_threadsafe(async_queue.get(), loop).result()
             if chunk is None:
                 break
             yield speech.StreamingRecognizeRequest(audio_content=chunk)
@@ -116,33 +130,17 @@ async def process_stream(ws: WebSocket, call_id: str) -> None:
                 break
 
     try:
-        config = speech.RecognitionConfig(
-            encoding=speech.RecognitionConfig.AudioEncoding.LINEAR16,
-            sample_rate_hertz=SAMPLE_RATE,
-            language_code="es-ES",
-            model="phone_call",
-            enable_automatic_punctuation=True,
-        )
-        streaming_config = speech.StreamingRecognitionConfig(
-            config=config, interim_results=False
-        )
-
         receive_task = asyncio.create_task(receive_audio_task())
-        requests = request_generator()
 
-        # --- LA CORRECCIÓN ESTÁ AQUÍ ---
-        # Añadimos el argumento 'config=streaming_config' que faltaba.
         responses_iterator = speech_client.streaming_recognize(
-            streaming_config=streaming_config, requests=request_generator()
+            requests=generate_requests()
         )
-        # --- FIN DE LA CORRECCIÓN ---
 
         logger.info(
             "[%s] Conexión con Google STT API establecida. Escuchando audio...",
             call_id,
         )
 
-        loop = asyncio.get_running_loop()
         await loop.run_in_executor(None, process_responses, responses_iterator, loop)
 
         await receive_task
