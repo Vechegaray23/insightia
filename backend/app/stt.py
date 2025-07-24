@@ -1,139 +1,116 @@
-"""Utilities for receiving audio from Twilio and transcribing it."""
+"""Utilidades para procesar resultados de transcripción del Media Stream de Twilio."""
 
-import audioop
-import io
-import os
-import time
-import wave
-import httpx
 import json
-import base64
+import time
 from fastapi import WebSocket
 
-from .supabase import save_transcript
-
-# Configuración de audio
-SAMPLE_RATE = int(os.getenv("TWILIO_SAMPLE_RATE", "16000"))
-CHUNK_SECONDS = 5
-CHUNK_SIZE = SAMPLE_RATE * CHUNK_SECONDS  # bytes for mu-law (1 byte por muestra)
-
-
-def mulaw_to_wav(data: bytes) -> bytes:
-    """Convierte audio μ-law en un archivo WAV."""
-    pcm = audioop.ulaw2lin(data, 2)
-
-    buffer = io.BytesIO()
-    with wave.open(buffer, "wb") as wf:
-        wf.setnchannels(1)
-        wf.setsampwidth(2)
-        wf.setframerate(SAMPLE_RATE)
-        wf.writeframes(pcm)
-    return buffer.getvalue()
-
-
-def transcribe_chunk(wav: bytes) -> str:
-    """Envía audio a Whisper y devuelve el texto."""
-    api_key = os.environ.get("OPENAI_API_KEY")
-    if not api_key:
-        raise RuntimeError("OPENAI_API_KEY not set")
-    headers = {"Authorization": f"Bearer {api_key}"}
-    files = {"file": ("audio.wav", wav, "audio/wav")}
-    data = {"model": "whisper-1", "language": "es"}
-
-    try:
-        resp = httpx.post(
-            "https://api.openai.com/v1/audio/transcriptions",
-            headers=headers,
-            data=data,
-            files=files,
-            timeout=5,
-        )
-        resp.raise_for_status()
-        return resp.json().get("text", "")
-    except httpx.RequestError as e:
-        print(f"An error occurred while requesting Whisper API: {e}")
-        return ""
-    except httpx.HTTPStatusError as e:
-        print(
-            f"Whisper API returned an error {e.response.status_code}: {e.response.text}"
-        )
-        return ""
-
+from .supabase import save_transcript # Asumiendo que esta función es para guardar transcripciones
+from .tts import speak # Importamos speak para poder generar audio de respuesta
+# TODO: Importa aquí tu servicio o función para interactuar con tu LLM (e.g., OpenAI, Gemini)
+# from .llm import get_llm_response
 
 async def process_stream(ws: WebSocket, call_id: str) -> None:
-    """Procesa audio por WebSocket y envía transcripciones a Twilio."""
-    buffer = b""
-    ts_start = time.time()
+    """
+    Procesa mensajes por WebSocket desde Twilio, esperando eventos
+    de reconocimiento de voz (speech_recognition_result).
+    """
+    print(f"[{call_id}] Starting Twilio native STT stream processing.")
 
-    print(f"[{call_id}] Starting STT stream processing.")
-
-    stream_active = True
     try:
-        while stream_active:
+        # Bucle para recibir mensajes continuamente del WebSocket
+        while True:
             message = await ws.receive()
 
             if "text" in message:
-                # Los mensajes de Twilio se reciben como JSON
                 try:
                     control_data = json.loads(message["text"])
                     event = control_data.get("event")
 
-                    if event == "media":
-                        payload_b64 = control_data.get("media", {}).get("payload", "")
-                        if payload_b64:
-                            buffer += base64.b64decode(payload_b64)
+                    # Evento clave: Twilio envía la transcripción aquí
+                    if event == "speech_recognition_result":
+                        recognition = control_data.get("recognition", {})
+                        # El primer elemento de 'alternative' es la mejor transcripción
+                        transcript_info = recognition.get("alternative", [{}])[0]
+                        transcript = transcript_info.get("transcript", "").strip() # Limpiamos espacios en blanco
+                        confidence = transcript_info.get("confidence")
+                        is_final = recognition.get("isFinal", False)
+                        speech_event_type = recognition.get("speechEventType") # 'partial_result' o 'end_of_utterance'
 
-                            while len(buffer) >= CHUNK_SIZE:
-                                raw = buffer[:CHUNK_SIZE]
-                                buffer = buffer[CHUNK_SIZE:]
+                        if transcript: # Solo procesamos si hay texto en la transcripción
+                            transcription_status = "Final" if is_final else "Parcial"
+                            print(
+                                f"[{call_id}] {transcription_status} Transcripción "
+                                f"(Conf: {confidence:.2f}, Tipo: {speech_event_type}): '{transcript}'"
+                            )
 
-                                wav = mulaw_to_wav(raw)
-                                text = transcribe_chunk(wav)
-                                ts_end = time.time()
+                            # Cuando la transcripción es final, la enviamos al LLM
+                            if is_final:
+                                # Guarda la transcripción final en tu base de datos
+                                # Puedes ajustar los timestamps si tu save_transcript los usa de forma diferente
+                                await save_transcript(call_id, time.time(), time.time(), transcript)
+                                print(f"[{call_id}] Enviando a LLM el texto final: '{transcript}'")
 
-                                if text and text.strip():
-                                    await save_transcript(
-                                        call_id, ts_start, ts_end, text
-                                    )
-                                    print(f"[{call_id}] Transcribed: {text}")
-                                    await ws.send_text(text)
+                                # --- LÓGICA DE TU AGENTE DE IA ---
+                                # 1. Envía el 'transcript' final a tu LLM
+                                # Por ejemplo:
+                                # llm_response_text = await get_llm_response(call_id, transcript) # Necesitarás implementar esto
+                                llm_response_text = f"Has dicho: '{transcript}'. Gracias por tu mensaje." # Placeholder
 
-                                ts_start = ts_end
+                                if llm_response_text:
+                                    # 2. Genera el audio TTS de la respuesta del LLM
+                                    response_audio_url = await speak(llm_response_text)
+
+                                    if response_audio_url:
+                                        # 3. Envía un comando a Twilio para reproducir el audio.
+                                        # Esto se hace enviando un mensaje JSON al WebSocket
+                                        # con una acción de "play" o "say".
+                                        # Twilio espera un TwiML dentro de un objeto 'media' para reproducirlo.
+                                        play_twiml = f"<Play>{response_audio_url}</Play>"
+                                        await ws.send_json({
+                                            "event": "media",
+                                            "media": {
+                                                "payload": play_twiml
+                                            }
+                                        })
+                                        print(f"[{call_id}] Enviado TwiML de respuesta a Twilio.")
+                                    else:
+                                        print(f"[{call_id}] No se pudo generar audio para la respuesta del LLM.")
+                                else:
+                                    print(f"[{call_id}] LLM no generó respuesta para: '{transcript}'")
+
+                    elif event == "media":
+                        # Estos son los chunks de audio raw. Con 'track="inbound_speech"',
+                        # Twilio ya nos envía la transcripción, así que podemos ignorar estos chunks
+                        # a menos que los necesitemos para otra cosa (ej. grabar la llamada).
+                        pass
 
                     elif event == "stop":
-                        print(f"[{call_id}] Twilio Media Stream 'stop' event received.")
+                        # Twilio envía este evento cuando la conexión del stream se cierra.
+                        print(f"[{call_id}] Twilio Media Stream 'stop' event received. Closing WebSocket.")
+                        break # Salir del bucle, cerrando el WebSocket
 
-                        if buffer:
-                            print(
-                                f"[{call_id}] Processing remaining buffer ({len(buffer)} bytes) before stopping."
-                            )
-                            wav = mulaw_to_wav(buffer)
-                            text = transcribe_chunk(wav)
-                            ts_end = time.time()
-                            if text and text.strip():
-                                await save_transcript(call_id, ts_start, ts_end, text)
-                                print(f"[{call_id}] Transcribed (final chunk): {text}")
+                    elif event == "start":
+                        # Este es el evento de inicio de stream, ya manejado en main.py.
+                        pass
 
-                        stream_active = False
                     else:
-                        print(f"[{call_id}] Received control message: {event}")
+                        print(
+                            f"[{call_id}] Received unhandled control message event: {event} -> "
+                            f"{json.dumps(control_data, indent=2)}"
+                        )
 
                 except json.JSONDecodeError:
-                    print(
-                        f"[{call_id}] Received non-JSON text message: {message['text']}"
-                    )
+                    print(f"[{call_id}] Received non-JSON text message: {message['text']}")
 
-            elif message is None:
-                # La conexión se cerró inesperadamente por el cliente
-                print(
-                    f"[{call_id}] WebSocket connection closed by client unexpectedly."
-                )
-                stream_active = False
+            # Manejo de desconexión del WebSocket
+            elif message is None or message["type"] == "websocket.disconnect":
+                print(f"[{call_id}] WebSocket disconnected by client.")
+                break
+
+            else:
+                print(f"[{call_id}] Received unexpected message type: {message.get('type')}")
 
     except Exception as e:
         print(f"[{call_id}] Error processing stream: {e}")
     finally:
-        print(
-            f"[{call_id}] STT stream processing finished. Final buffer size: {len(buffer)}"
-        )
-        # El búfer ya fue procesado si se recibió un evento 'stop'.
+        print(f"[{call_id}] STT stream processing finished.")
