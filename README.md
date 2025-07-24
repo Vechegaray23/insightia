@@ -1,12 +1,10 @@
 # Proyecto Insightia
 
-Este repositorio contiene la infraestructura y código inicial del MVP para un agente telefónico con IA.
+Servicio mínimo para recibir llamadas vía Twilio, hablar con TTS y guardar las transcripciones en Supabase.
 
-## Repositorios internos
+## Componentes principales
 
-- `iac`: Terraform para la infraestructura.
-- `backend`: código en Python y pruebas.
-- `frontend`: interfaz de usuario.
+- `backend`: código en Python con la API y lógica de transcripción.
 
 ## Docker
 
