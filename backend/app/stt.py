@@ -1,4 +1,5 @@
-# backend/app/stt.py
+"""Utilities for receiving audio from Twilio and transcribing it."""
+
 import audioop
 import io
 import os
@@ -7,14 +8,14 @@ import wave
 import httpx
 import json
 import base64
-from fastapi import WebSocket  # Necesario para tipado y métodos asíncronos
+from fastapi import WebSocket
 
 from .supabase import save_transcript
 
+# Configuración de audio
 SAMPLE_RATE = int(os.getenv("TWILIO_SAMPLE_RATE", "16000"))
-
 CHUNK_SECONDS = 5
-CHUNK_SIZE = SAMPLE_RATE * CHUNK_SECONDS  # bytes for mu-law (1 byte per sample)
+CHUNK_SIZE = SAMPLE_RATE * CHUNK_SECONDS  # bytes for mu-law (1 byte por muestra)
 
 
 def mulaw_to_wav(data: bytes) -> bytes:
@@ -45,37 +46,34 @@ def transcribe_chunk(wav: bytes) -> str:
             headers=headers,
             data=data,
             files=files,
-            timeout=5,  # Añadir timeout
+            timeout=5,
         )
-        resp.raise_for_status()  # Lanza un HTTPStatusError para códigos de error 4xx/5xx
+        resp.raise_for_status()
         return resp.json().get("text", "")
     except httpx.RequestError as e:
         print(f"An error occurred while requesting Whisper API: {e}")
-        return ""  # Devuelve cadena vacía en caso de error de red/conexión
+        return ""
     except httpx.HTTPStatusError as e:
         print(
             f"Whisper API returned an error {e.response.status_code}: {e.response.text}"
         )
-        return ""  # Devuelve cadena vacía en caso de error de API
+        return ""
 
 
 async def process_stream(ws: WebSocket, call_id: str) -> None:
-    """
-    Procesa audio por WebSocket, lo envía a Whisper y emite transcripciones.
-    Maneja diferentes tipos de mensajes de Twilio Media Streams.
-    """
+    """Procesa audio por WebSocket y envía transcripciones a Twilio."""
     buffer = b""
     ts_start = time.time()
 
     print(f"[{call_id}] Starting STT stream processing.")
 
-    stream_active = True  # Controla el bucle principal
+    stream_active = True
     try:
         while stream_active:
-            message = await ws.receive()  # Espera por cualquier tipo de mensaje
+            message = await ws.receive()
 
             if "text" in message:
-                # Twilio Media Streams envía todos los datos como texto JSON
+                # Los mensajes de Twilio se reciben como JSON
                 try:
                     control_data = json.loads(message["text"])
                     event = control_data.get("event")
@@ -125,13 +123,12 @@ async def process_stream(ws: WebSocket, call_id: str) -> None:
                         f"[{call_id}] Received non-JSON text message: {message['text']}"
                     )
 
-            elif (
-                message is None
-            ):  # La conexión WebSocket se cerró inesperadamente por el cliente
+            elif message is None:
+                # La conexión se cerró inesperadamente por el cliente
                 print(
                     f"[{call_id}] WebSocket connection closed by client unexpectedly."
                 )
-                stream_active = False  # Salir del bucle
+                stream_active = False
 
     except Exception as e:
         print(f"[{call_id}] Error processing stream: {e}")

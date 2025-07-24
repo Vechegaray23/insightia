@@ -1,51 +1,44 @@
-# backend/app/main.py
+"""FastAPI application with endpoints used by Twilio."""
+
 import os
-from fastapi import FastAPI, Response, WebSocket
 import json  # Necesario para parsear el mensaje inicial del WebSocket
+from fastapi import FastAPI, Response, WebSocket
 
 from .tts import speak
 from . import stt
 
+# Instancia principal de la aplicación
 app = FastAPI()
 
 
 @app.websocket("/stt")
 async def websocket_stt(websocket: WebSocket):
-    """
-    Recibe audio μ-law de Twilio Media Streams y delega el procesamiento.
-    Intenta extraer el call_id de los metadatos iniciales de Twilio.
-    """
-    await websocket.accept()  # Aceptar la conexión WebSocket
+    """WebSocket que recibe audio de Twilio y envía las transcripciones."""
 
-    call_id = "unknown-call"  # Valor por defecto
+    # Aceptamos la conexión para empezar a recibir audio
+    await websocket.accept()
 
-    try:
-        # El primer mensaje de Twilio Media Streams suele ser un JSON con el evento "start"
-        initial_message = await websocket.receive_json()
-        if initial_message.get("event") == "start":
-            call_sid = initial_message.get("start", {}).get("callSid")
-            if call_sid:
-                call_id = call_sid
-                print(f"[{call_id}] Received callSid: {call_id}")  # Para depuración
-    except Exception as e:
-        print(f"Error receiving initial WebSocket message or call_id: {e}")
-        # Continuar con el call_id por defecto si falla la obtención
+    call_id = "unknown-call"
 
-    # stt.process_stream ahora debe ser una función asíncrona
-    # En backend/app/main.py, dentro de websocket_stt
+    # El primer mensaje contiene metadatos de la llamada; de ahí extraemos el
+    # callSid para identificar la conversación.
     try:
         initial_message = await websocket.receive_json()
         print(
-            f"DEBUG: Initial WebSocket message from Twilio: {json.dumps(initial_message, indent=2)}"
-        )  # Añade esto
+            "DEBUG: Initial WebSocket message from Twilio:"
+            f" {json.dumps(initial_message, indent=2)}"
+        )
+
         if initial_message.get("event") == "start":
             call_sid = initial_message.get("start", {}).get("callSid")
             if call_sid:
                 call_id = call_sid
                 print(f"[{call_id}] Received callSid: {call_id}")
     except Exception as e:
+        # Si algo falla, continuamos con un identificador genérico
         print(f"Error receiving initial WebSocket message or call_id: {e}")
 
+    # Delegamos el procesamiento del stream de audio
     await stt.process_stream(websocket, call_id)
     print(f"[{call_id}] WebSocket connection closed.")
 
@@ -58,10 +51,9 @@ async def health() -> dict[str, str]:
 
 @app.post("/voice")
 async def voice():
-    """
-    Devuelve TwiML que reproduce un saludo TTS de OpenAI y luego
-    inicia Twilio Media Streams para STT y espera la entrada del usuario.
-    """
+    """Endpoint invocado por Twilio al iniciar una llamada."""
+
+    # Texto de bienvenida que se reproducirá al iniciarse la conversación
     initial_greeting_text = "Nuestra misión es compartir la belleza de las palabras y las historias que se tejen con ellas."
 
     greeting_audio_url = None
@@ -74,6 +66,7 @@ async def voice():
         "TWILIO_WEBSOCKET_URL", "wss://insightia-production.up.railway.app/stt"
     )
 
+    # Construimos dinámicamente la respuesta TwiML que Twilio reproducirá
     twiml_parts = [
         "<?xml version='1.0' encoding='UTF-8'?>",
         "<Response>",
@@ -83,27 +76,15 @@ async def voice():
     ]
 
     if greeting_audio_url:
+        # Si el audio se generó correctamente, lo reproducimos
         twiml_parts.append(f"  <Play>{greeting_audio_url}</Play>")
     else:
+        # En caso contrario pronunciamos el texto directamente
         twiml_parts.append(f"  <Say>{initial_greeting_text}</Say>")
 
-    # --- NUEVA ADICIÓN: <Gather> para mantener la llamada activa y esperar la voz del usuario ---
-    # input='speech': Twilio escuchará la voz.
-    # speechTimeout='auto': Twilio detectará automáticamente cuándo el usuario deja de hablar.
-    # timeout='10': Twilio esperará hasta 10 segundos de silencio antes de finalizar la espera (si no hay speech).
-    # action: URL a la que Twilio enviará el resultado de la voz del usuario.
-    #         Si no se especifica, Twilio volverá a enviar la solicitud a la URL actual (/voice).
-    #         Para un flujo de conversación completo, necesitarías un endpoint dedicado para esto.
-
-    """
-        twiml_parts.append(
-        "  <Gather input='speech' speechTimeout='auto' timeout='20'>"
-        "  </Gather>"
-        "</Response>"
-    )
-    """
-    # Mantener la llamada abierta mientras se transmite el audio
-    # Se elimina el bloque <Gather> y se usa un <Pause> para mantener la conexion
+    # Mantener la llamada abierta mientras se reproduce el saludo. Se utiliza
+    # un bloque <Pause> para que Twilio no finalice la llamada de inmediato y
+    # podamos recibir audio del usuario por el WebSocket.
     twiml_parts.append("  <Pause length='20'/>")
     twiml_parts.append("</Response>")
 

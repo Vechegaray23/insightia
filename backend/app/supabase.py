@@ -1,4 +1,4 @@
-# backend/app/supabase.py
+"""Helper for storing transcripts in Supabase."""
 
 import os
 import httpx
@@ -15,6 +15,7 @@ async def save_transcript(
         print("Supabase credentials not set. Skipping save_transcript.")
         return  # Si las variables no están, la función sale sin error
 
+    # Cabeceras de autenticación para la API REST de Supabase
     headers = {
         "apikey": key,
         "Authorization": f"Bearer {key}",
@@ -28,16 +29,14 @@ async def save_transcript(
     }
 
     try:
-        # Modificación: Hacer la llamada HTTP asíncrona
-        async with httpx.AsyncClient() as client:  # Usar AsyncClient
+        # Realizamos la petición de forma asíncrona
+        async with httpx.AsyncClient() as client:
             resp = await client.post(
                 f"{url}/rest/v1/transcripts", headers=headers, json=data, timeout=10
-            )  # Añadir timeout
+            )
 
-        resp.raise_for_status()  # Lanza un HTTPStatusError para códigos de error 4xx/5xx
-        print(
-            f"Transcript saved to Supabase for call {call_id}: {text[:50]}..."
-        )  # Log de éxito
+        resp.raise_for_status()
+        print(f"Transcript saved to Supabase for call {call_id}: {text[:50]}...")
     except httpx.RequestError as e:
         print(f"Supabase connection error for call {call_id}: {e}")
     except httpx.HTTPStatusError as e:
